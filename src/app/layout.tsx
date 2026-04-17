@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Space_Grotesk } from "next/font/google";
 
+import { ThemeSync } from "@/components/theme-sync";
+
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -38,6 +40,24 @@ export default function RootLayout({
       className={`${spaceGrotesk.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background font-sans text-foreground">
+        <ThemeSync />
+        <svg
+          aria-hidden="true"
+          className="texture-noise"
+          id="texture"
+          preserveAspectRatio="none"
+        >
+          <filter id="noise">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency=".8"
+              numOctaves="4"
+              stitchTiles="stitch"
+            />
+            <feColorMatrix type="saturate" values="0" />
+          </filter>
+          <rect width="100%" height="100%" filter="url(#noise)" />
+        </svg>
         {children}
       </body>
     </html>
