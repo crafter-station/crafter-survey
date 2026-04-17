@@ -21,10 +21,14 @@ import type {
 
 import { AccessGate } from "./access-gate";
 import { CompletionScreen } from "./completion-screen";
+import { type SurveyMode, SurveyModeToggle } from "./mode-toggle";
 import { ProgressNav } from "./progress-nav";
 import { QuestionRenderer } from "./question-renderer";
 import { SectionPanel } from "./section-panel";
+import { SurveyChat } from "./survey-chat";
 import { SurveyShell } from "./survey-shell";
+
+const MODE_STORAGE_KEY = "cs_survey_mode";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -138,6 +142,22 @@ export function SurveyExperience({
   const [submitPending, setSubmitPending] = useState(false);
   const [missingQuestionIds, setMissingQuestionIds] = useState<string[]>([]);
   const [direction, setDirection] = useState(1);
+  const [surveyMode, setSurveyMode] = useState<SurveyMode>("chat");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(MODE_STORAGE_KEY);
+    if (stored === "chat" || stored === "form") {
+      setSurveyMode(stored);
+    }
+  }, []);
+
+  function updateSurveyMode(nextMode: SurveyMode) {
+    setSurveyMode(nextMode);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(MODE_STORAGE_KEY, nextMode);
+    }
+  }
 
   const dirtyQuestionIdsRef = useRef(new Set<string>());
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -157,6 +177,29 @@ export function SurveyExperience({
     saveStateTimerRef.current = setTimeout(() => {
       setSaveState("idle");
     }, 1800);
+  });
+
+  const refreshFromServer = useEffectEvent(async () => {
+    if (mode !== "survey" || !response) return;
+    try {
+      const url = new URL("/api/survey/state", window.location.origin);
+      url.searchParams.set("responseId", response.id);
+      const res = await fetch(url.toString(), { method: "GET" });
+      if (!res.ok) return;
+      const data = (await res.json().catch(() => null)) as {
+        survey?: SurveyPageData["survey"];
+        response?: SurveyPageData["response"];
+      } | null;
+      if (!data?.survey || !data.response) return;
+      setSurvey(data.survey);
+      setResponse(data.response);
+      setAnswers(data.response.answers ?? {});
+      if (data.response.status === "submitted") {
+        setMode("submitted");
+      }
+    } catch {
+      // ignore
+    }
   });
 
   const hydrateFromServer = useEffectEvent((nextData: SurveyPageData) => {
@@ -631,10 +674,16 @@ export function SurveyExperience({
         ? "Tus respuestas quedaron guardadas. Si dejaste tus datos, te escribimos pronto."
         : "Anónima, privada y con guardado automático en cada etapa.";
 
+  const isChatActive = mode === "survey" && surveyMode === "chat";
+
   return (
     <SurveyShell
       footer={
-        mode === "survey" && currentSection && survey && response ? (
+        mode === "survey" &&
+        currentSection &&
+        survey &&
+        response &&
+        !isChatActive ? (
           <ProgressNav
             canGoBack={currentSectionIndex > 0}
             currentSectionIndex={currentSectionIndex}
@@ -681,7 +730,39 @@ export function SurveyExperience({
         <CompletionScreen description={survey?.completionDescription ?? null} />
       ) : null}
 
-      {mode === "survey" && survey && currentSection ? (
+      {mode === "survey" && survey && response ? (
+        <div className="mb-4 flex justify-end">
+          <SurveyModeToggle
+            mode={surveyMode}
+            onChange={async (next) => {
+              if (next === surveyMode) return;
+              if (surveyMode === "form") {
+                await flushDirty({ forceTouch: false });
+              }
+              updateSurveyMode(next);
+              await refreshFromServer();
+            }}
+          />
+        </div>
+      ) : null}
+
+      {isChatActive && survey && response ? (
+        <SurveyChat
+          onAnswerSaved={() => {
+            void refreshFromServer();
+          }}
+          onCompleted={() => {
+            void refreshFromServer();
+          }}
+          response={response}
+          survey={survey}
+        />
+      ) : null}
+
+      {mode === "survey" &&
+      surveyMode === "form" &&
+      survey &&
+      currentSection ? (
         <AnimatePresence initial={false} mode="wait">
           <SectionPanel
             direction={reducedMotion ? 0 : direction}
