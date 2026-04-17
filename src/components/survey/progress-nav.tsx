@@ -34,6 +34,7 @@ export function ProgressNav({
 
       <div className="flex items-center gap-3">
         <Button
+          className="px-3 py-2.5 text-[0.72rem] tracking-[0.22em]"
           variant="secondary"
           disabled={!canGoBack || isBusy}
           onClick={onBack}
@@ -42,11 +43,19 @@ export function ProgressNav({
         </Button>
 
         {isLastSection ? (
-          <Button disabled={isBusy} onClick={onSubmit}>
+          <Button
+            className="px-3 py-2.5 text-[0.72rem] tracking-[0.22em]"
+            disabled={isBusy}
+            onClick={onSubmit}
+          >
             {isBusy ? "Enviando..." : "Enviar respuestas"}
           </Button>
         ) : (
-          <Button disabled={isBusy} onClick={onNext}>
+          <Button
+            className="px-3 py-2.5 text-[0.72rem] tracking-[0.22em]"
+            disabled={isBusy}
+            onClick={onNext}
+          >
             {isBusy ? "Guardando..." : "Siguiente"}
           </Button>
         )}

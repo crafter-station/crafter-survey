@@ -51,27 +51,27 @@ export function SurveyShell({
         }}
       />
 
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-8 sm:px-8 sm:py-10 lg:px-12">
-        <header className="max-w-3xl space-y-4 pt-6 sm:pt-8">
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1040px] flex-col px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+        <header className="mx-auto w-full max-w-4xl space-y-3 pt-4 sm:pt-6">
           <div className="flex items-center gap-3">
             <CrafterIcon className="h-3.5 w-3.5 text-foreground sm:h-4 sm:w-4" />
             <p className="survey-kicker text-[0.69rem] uppercase tracking-[0.28em]">
               Crafter Station
             </p>
           </div>
-          <h1 className="max-w-4xl text-4xl leading-none font-medium tracking-[-0.045em] text-foreground sm:text-5xl lg:text-6xl">
+          <h1 className="survey-heading max-w-4xl text-4xl leading-none font-medium tracking-[-0.045em] text-foreground sm:text-5xl lg:text-6xl">
             {surveyTitle}
           </h1>
           {surveyDescription ? (
-            <div className="survey-muted max-w-3xl text-base leading-8 whitespace-pre-line">
+            <div className="survey-body survey-muted max-w-3xl text-base leading-8 whitespace-pre-line">
               {surveyDescription}
             </div>
           ) : null}
         </header>
 
-        <div className="survey-surface max-w-4xl">
-          <div className="space-y-5">
-            <div className="space-y-2">
+        <div className="survey-surface mx-auto w-full max-w-4xl">
+          <div className="space-y-4">
+            <div className="space-y-1.5">
               <div className="survey-kicker flex items-center justify-between gap-4 text-[0.69rem] uppercase tracking-[0.26em]">
                 <span>{panelEyebrow}</span>
                 <span>{Math.round(progressValue * 100)}%</span>
@@ -84,12 +84,12 @@ export function SurveyShell({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <h2 className="max-w-3xl text-2xl leading-tight font-medium tracking-[-0.03em] text-foreground sm:text-3xl">
+            <div className="space-y-1.5">
+              <h2 className="survey-heading max-w-3xl text-2xl leading-tight font-medium tracking-[-0.03em] text-foreground sm:text-3xl">
                 {panelTitle}
               </h2>
               {panelDescription ? (
-                <p className="survey-muted max-w-2xl text-base leading-7">
+                <p className="survey-body survey-muted max-w-2xl text-base leading-7">
                   {panelDescription}
                 </p>
               ) : null}

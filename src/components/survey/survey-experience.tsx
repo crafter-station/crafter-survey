@@ -291,6 +291,12 @@ export function SurveyExperience({
     }, 900);
   });
 
+  const scrollToSectionTop = useEffectEvent(() => {
+    window.setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 80);
+  });
+
   const scrollToQuestion = useEffectEvent((questionId: string) => {
     window.setTimeout(() => {
       document
@@ -444,6 +450,7 @@ export function SurveyExperience({
     startTransition(() => {
       setCurrentSectionIndex(nextIndex);
     });
+    scrollToSectionTop();
   }
 
   async function handleNext() {
@@ -477,6 +484,7 @@ export function SurveyExperience({
     startTransition(() => {
       setCurrentSectionIndex(nextIndex);
     });
+    scrollToSectionTop();
   }
 
   async function handleSubmit() {

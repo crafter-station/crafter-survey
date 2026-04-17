@@ -1,5 +1,6 @@
 import type { HTMLAttributes } from "react";
 
+import { Input } from "@/components/ui/input";
 import type { SurveyQuestion } from "@/types/survey";
 
 function readUiString(
@@ -41,9 +42,9 @@ export function TextQuestion({
   onChange: (value: string) => void;
 }) {
   return (
-    <input
+    <Input
       autoComplete={readUiString(question, "autoComplete")}
-      className="survey-input"
+      className="survey-input h-auto px-3 py-2.5 md:text-sm"
       inputMode={readInputMode(question)}
       onChange={(event) => onChange(event.target.value)}
       placeholder={question.placeholder ?? ""}

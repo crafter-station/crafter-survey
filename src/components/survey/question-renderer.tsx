@@ -1,3 +1,5 @@
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import type {
   JsonValue,
   MultiSelectAnswerValue,
@@ -78,82 +80,91 @@ export function QuestionRenderer({
   question: SurveyQuestion;
 }) {
   const containerClass = [
-    "space-y-4 border px-4 py-4 sm:px-5 sm:py-5",
-    invalid ? "survey-error" : "border-border bg-[var(--panel)]",
+    "space-y-3 px-0 py-0",
+    invalid ? "survey-error p-3" : "bg-transparent",
   ].join(" ");
 
   return (
-    <div className={containerClass} id={`question-${question.id}`}>
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <h3 className="text-lg leading-7 font-medium tracking-[-0.02em] text-foreground">
-            {question.prompt}
-          </h3>
-          {question.required ? (
-            <span className="survey-pill px-2.5 py-1 text-[0.66rem] uppercase tracking-[0.24em]">
-              Obligatoria
-            </span>
+    <Card className={containerClass} id={`question-${question.id}`} size="sm">
+      <CardContent className="space-y-3 px-0">
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-3">
+            <h3 className="survey-heading text-lg leading-7 font-medium tracking-[-0.02em] text-foreground">
+              {question.prompt}
+            </h3>
+            {question.required ? (
+              <Badge
+                className="survey-pill survey-kicker px-2 py-0.5 text-[0.66rem] uppercase tracking-[0.24em]"
+                variant="outline"
+              >
+                Obligatoria
+              </Badge>
+            ) : null}
+          </div>
+
+          {question.helpText ? (
+            <p className="survey-body survey-muted max-w-2xl text-sm leading-6">
+              {question.helpText}
+            </p>
+          ) : null}
+
+          {invalid ? (
+            <p className="survey-body text-sm leading-6 text-[var(--danger-foreground)]">
+              Este campo es obligatorio para continuar.
+            </p>
           ) : null}
         </div>
 
-        {question.helpText ? (
-          <p className="survey-muted max-w-2xl text-sm leading-6">
-            {question.helpText}
-          </p>
+        {question.questionType === "long_text" ? (
+          <TextareaQuestion
+            onChange={(value) =>
+              onChange({ valueText: value, valueJson: null })
+            }
+            question={question}
+            value={answer?.valueText ?? ""}
+          />
         ) : null}
 
-        {invalid ? (
-          <p className="text-sm leading-6 text-[var(--danger-foreground)]">
-            Este campo es obligatorio para continuar.
-          </p>
+        {question.questionType === "short_text" ||
+        question.questionType === "email" ||
+        question.questionType === "phone" ? (
+          <TextQuestion
+            onChange={(value) =>
+              onChange({ valueText: value, valueJson: null })
+            }
+            question={question}
+            value={answer?.valueText ?? ""}
+          />
         ) : null}
-      </div>
 
-      {question.questionType === "long_text" ? (
-        <TextareaQuestion
-          onChange={(value) => onChange({ valueText: value, valueJson: null })}
-          question={question}
-          value={answer?.valueText ?? ""}
-        />
-      ) : null}
+        {question.questionType === "single_select" ? (
+          <SingleSelectQuestion
+            onChange={(value) => {
+              onChange({
+                valueText: null,
+                valueJson: value as unknown as JsonValue,
+              });
 
-      {question.questionType === "short_text" ||
-      question.questionType === "email" ||
-      question.questionType === "phone" ? (
-        <TextQuestion
-          onChange={(value) => onChange({ valueText: value, valueJson: null })}
-          question={question}
-          value={answer?.valueText ?? ""}
-        />
-      ) : null}
+              onSingleSelectCommit?.();
+            }}
+            question={question}
+            value={readSingleSelectValue(answer)}
+          />
+        ) : null}
 
-      {question.questionType === "single_select" ? (
-        <SingleSelectQuestion
-          onChange={(value) => {
-            onChange({
-              valueText: null,
-              valueJson: value as unknown as JsonValue,
-            });
-
-            onSingleSelectCommit?.();
-          }}
-          question={question}
-          value={readSingleSelectValue(answer)}
-        />
-      ) : null}
-
-      {question.questionType === "multi_select" ? (
-        <MultiSelectQuestion
-          onChange={(value) =>
-            onChange({
-              valueText: null,
-              valueJson: value as unknown as JsonValue,
-            })
-          }
-          question={question}
-          value={readMultiSelectValue(answer)}
-        />
-      ) : null}
-    </div>
+        {question.questionType === "multi_select" ? (
+          <MultiSelectQuestion
+            onChange={(value) =>
+              onChange({
+                valueText: null,
+                valueJson: value as unknown as JsonValue,
+              })
+            }
+            question={question}
+            value={readMultiSelectValue(answer)}
+          />
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }

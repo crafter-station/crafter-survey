@@ -1,6 +1,6 @@
 import type { FormEvent } from "react";
-
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export function AccessGate({
   code,
@@ -24,10 +24,10 @@ export function AccessGate({
         >
           Código de acceso
         </label>
-        <input
+        <Input
           autoCapitalize="characters"
           autoCorrect="off"
-          className="survey-input text-base uppercase tracking-[0.22em]"
+          className="survey-input h-auto px-3 py-2.5 text-base uppercase tracking-[0.22em] md:text-sm"
           id="survey-access-code"
           onChange={(event) => onCodeChange(event.target.value)}
           placeholder="Ingresa tu código"
@@ -43,7 +43,11 @@ export function AccessGate({
           ya empezaste antes.
         </p>
 
-        <Button disabled={isPending} type="submit">
+        <Button
+          className="px-3 py-2.5 text-[0.72rem] tracking-[0.22em]"
+          disabled={isPending}
+          type="submit"
+        >
           {isPending ? "Entrando..." : "Entrar al survey"}
         </Button>
       </div>

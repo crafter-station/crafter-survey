@@ -1,9 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Geist_Mono, Space_Grotesk, Inter } from "next/font/google";
-import "./globals.css";
-import { cn } from "@/lib/utils";
+import { Geist_Mono, Space_Grotesk } from "next/font/google";
 
-const inter = Inter({subsets:['latin'],variable:'--font-sans'});
+import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
@@ -37,7 +35,7 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={cn("h-full", "antialiased", spaceGrotesk.variable, geistMono.variable, "font-sans", inter.variable)}
+      className={`${spaceGrotesk.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background font-sans text-foreground">
         {children}

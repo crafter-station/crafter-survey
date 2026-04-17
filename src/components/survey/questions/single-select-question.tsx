@@ -1,3 +1,4 @@
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { SingleSelectAnswerValue, SurveyQuestion } from "@/types/survey";
 
 function readUiString(
@@ -19,34 +20,42 @@ export function SingleSelectQuestion({
   onChange: (value: SingleSelectAnswerValue) => void;
 }) {
   return (
-    <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2">
+    <div className="space-y-2.5">
+      <RadioGroup
+        className="grid gap-2.5 sm:grid-cols-2"
+        onValueChange={(nextValue) => {
+          if (!nextValue) {
+            return;
+          }
+
+          const option = question.options.find(
+            (item) => item.key === nextValue,
+          );
+
+          onChange({
+            choice: nextValue,
+            ...(option?.meta?.allowsText
+              ? { otherText: value.otherText ?? "" }
+              : {}),
+          });
+        }}
+        value={value.choice ?? ""}
+      >
         {question.options.map((option) => {
           const selected = value.choice === option.key;
 
           return (
-            <label
+            <div
               className={[
                 "survey-option cursor-pointer",
                 selected ? "survey-option-selected" : "",
               ].join(" ")}
               key={option.id}
             >
-              <input
-                checked={selected}
-                className="sr-only"
-                name={question.id}
-                onChange={() =>
-                  onChange({
-                    choice: option.key,
-                    ...(option.meta?.allowsText
-                      ? { otherText: value.otherText ?? "" }
-                      : {}),
-                  })
-                }
-                type="radio"
-              />
-              <div className="flex items-start justify-between gap-3">
+              <label
+                className="flex cursor-pointer items-start justify-between gap-2.5"
+                htmlFor={`${question.id}-${option.key}`}
+              >
                 <div className="space-y-1">
                   <p className="text-base leading-6 text-foreground">
                     {option.label}
@@ -55,19 +64,16 @@ export function SingleSelectQuestion({
                     <p className="survey-muted text-sm">{option.helpText}</p>
                   ) : null}
                 </div>
-                <span className="survey-choice-indicator mt-1 inline-flex h-4 w-4 shrink-0 border p-[3px]">
-                  <span
-                    className={[
-                      "survey-choice-indicator-mark h-full w-full transition-opacity duration-150",
-                      selected ? "opacity-100" : "opacity-0",
-                    ].join(" ")}
-                  />
-                </span>
-              </div>
-            </label>
+                <RadioGroupItem
+                  className="mt-1 border-border bg-background text-primary"
+                  id={`${question.id}-${option.key}`}
+                  value={option.key}
+                />
+              </label>
+            </div>
           );
         })}
-      </div>
+      </RadioGroup>
 
       {question.options.some(
         (option) => option.key === value.choice && option.meta?.allowsText,
