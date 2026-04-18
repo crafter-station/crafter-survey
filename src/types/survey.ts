@@ -39,8 +39,46 @@ export interface SurveyQuestionUi {
   inputMode?: string;
 }
 
+export interface SurveyOptionDefinition {
+  analyticsKey: string;
+  key: string;
+  label: string;
+  helpText?: string;
+  meta?: SurveyOptionMeta;
+}
+
+export interface SurveyQuestionDefinition {
+  analyticsKey: string;
+  key: string;
+  prompt: string;
+  helpText?: string;
+  questionType: SurveyQuestionType;
+  required?: boolean;
+  placeholder?: string;
+  validation?: SurveyQuestionValidation;
+  ui?: SurveyQuestionUi;
+  options?: SurveyOptionDefinition[];
+}
+
+export interface SurveySectionDefinition {
+  key: string;
+  title: string;
+  description?: string;
+  questions: SurveyQuestionDefinition[];
+}
+
+export interface SurveyDefinition {
+  slug: string;
+  title: string;
+  description: string;
+  completionTitle: string;
+  completionDescription: string;
+  sections: SurveySectionDefinition[];
+}
+
 export interface SurveyOption {
   id: string;
+  analyticsKey: string;
   key: string;
   label: string;
   helpText: string | null;
@@ -49,6 +87,7 @@ export interface SurveyOption {
 
 export interface SurveyQuestion {
   id: string;
+  analyticsKey: string;
   key: string;
   prompt: string;
   helpText: string | null;
@@ -106,6 +145,8 @@ export type SurveyAnswerValue =
 
 export interface SerializedAnswer {
   questionId: string;
+  questionAnalyticsKeySnapshot?: string | null;
+  selectedOptionAnalyticsKeysSnapshot?: string[] | null;
   valueText: string | null;
   valueJson: JsonValue | null;
   clientUpdatedAt: string;

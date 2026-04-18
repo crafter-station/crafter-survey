@@ -37,6 +37,9 @@ export async function saveSurveyProgress({
         responseId,
         questionId: change.questionId,
         questionKeySnapshot: change.questionKeySnapshot,
+        questionAnalyticsKeySnapshot: change.questionAnalyticsKeySnapshot,
+        selectedOptionAnalyticsKeysSnapshot:
+          change.selectedOptionAnalyticsKeysSnapshot,
         valueText: change.valueText,
         valueJson: change.valueJson as
           | Record<string, unknown>
@@ -50,6 +53,9 @@ export async function saveSurveyProgress({
         target: [surveyAnswers.responseId, surveyAnswers.questionId],
         set: {
           questionKeySnapshot: change.questionKeySnapshot,
+          questionAnalyticsKeySnapshot: change.questionAnalyticsKeySnapshot,
+          selectedOptionAnalyticsKeysSnapshot:
+            change.selectedOptionAnalyticsKeysSnapshot,
           valueText: change.valueText,
           valueJson: change.valueJson as
             | Record<string, unknown>
