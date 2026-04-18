@@ -19,6 +19,8 @@ export class SurveyValidationError extends Error {
 export interface PreparedAnswerChange {
   questionId: string;
   questionKeySnapshot: string;
+  questionAnalyticsKeySnapshot: string;
+  selectedOptionAnalyticsKeysSnapshot: string[] | null;
   valueText: string | null;
   valueJson: JsonValue | null;
   clientUpdatedAt: Date;
@@ -128,6 +130,8 @@ function sanitizeTextAnswer(
   return {
     questionId: question.id,
     questionKeySnapshot: question.key,
+    questionAnalyticsKeySnapshot: question.analyticsKey,
+    selectedOptionAnalyticsKeysSnapshot: null,
     valueText,
     valueJson: null,
     clientUpdatedAt: new Date(payload.clientUpdatedAt),
@@ -158,6 +162,8 @@ function sanitizeSingleSelectAnswer(
     return {
       questionId: question.id,
       questionKeySnapshot: question.key,
+      questionAnalyticsKeySnapshot: question.analyticsKey,
+      selectedOptionAnalyticsKeysSnapshot: null,
       valueText: null,
       valueJson: null,
       clientUpdatedAt: new Date(payload.clientUpdatedAt),
@@ -183,6 +189,8 @@ function sanitizeSingleSelectAnswer(
   return {
     questionId: question.id,
     questionKeySnapshot: question.key,
+    questionAnalyticsKeySnapshot: question.analyticsKey,
+    selectedOptionAnalyticsKeysSnapshot: [option.analyticsKey],
     valueText: null,
     valueJson: {
       choice,
@@ -226,6 +234,8 @@ function sanitizeMultiSelectAnswer(
     return {
       questionId: question.id,
       questionKeySnapshot: question.key,
+      questionAnalyticsKeySnapshot: question.analyticsKey,
+      selectedOptionAnalyticsKeysSnapshot: null,
       valueText: null,
       valueJson: null,
       clientUpdatedAt: new Date(payload.clientUpdatedAt),
@@ -245,6 +255,18 @@ function sanitizeMultiSelectAnswer(
   return {
     questionId: question.id,
     questionKeySnapshot: question.key,
+    questionAnalyticsKeySnapshot: question.analyticsKey,
+    selectedOptionAnalyticsKeysSnapshot: choices.map((choice) => {
+      const option = getOption(question, choice);
+
+      if (!option) {
+        throw new SurveyValidationError(
+          `Invalid option selected for ${question.prompt}.`,
+        );
+      }
+
+      return option.analyticsKey;
+    }),
     valueText: null,
     valueJson: {
       choices,

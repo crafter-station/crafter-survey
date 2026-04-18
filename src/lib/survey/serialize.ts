@@ -28,6 +28,7 @@ interface SurveyVersionBundle {
     sortOrder: number;
     questions: Array<{
       id: string;
+      analyticsKey: string | null;
       key: string;
       prompt: string;
       helpText: string | null;
@@ -39,6 +40,7 @@ interface SurveyVersionBundle {
       uiJson: Record<string, unknown> | null;
       options: Array<{
         id: string;
+        analyticsKey: string | null;
         key: string;
         label: string;
         helpText: string | null;
@@ -57,6 +59,8 @@ interface ResponseBundle {
   submittedAt: Date | null;
   answers: Array<{
     questionId: string;
+    questionAnalyticsKeySnapshot: string | null;
+    selectedOptionAnalyticsKeysSnapshot: string[] | null;
     valueText: string | null;
     valueJson: Record<string, unknown> | string[] | string | null;
     clientUpdatedAt: Date;
@@ -90,6 +94,7 @@ export function serializeSurvey(bundle: SurveyVersionBundle): SerializedSurvey {
       sortOrder: section.sortOrder,
       questions: section.questions.map((question) => ({
         id: question.id,
+        analyticsKey: question.analyticsKey ?? `${section.key}.${question.key}`,
         key: question.key,
         prompt: question.prompt,
         helpText: question.helpText,
@@ -101,6 +106,9 @@ export function serializeSurvey(bundle: SurveyVersionBundle): SerializedSurvey {
         ui: question.uiJson as Record<string, unknown> | null,
         options: question.options.map((option) => ({
           id: option.id,
+          analyticsKey:
+            option.analyticsKey ??
+            `${question.analyticsKey ?? `${section.key}.${question.key}`}.${option.key}`,
           key: option.key,
           label: option.label,
           helpText: option.helpText,
@@ -118,6 +126,9 @@ export function serializeSurveyResponse(
     response.answers.map((answer) => {
       const serialized: SerializedAnswer = {
         questionId: answer.questionId,
+        questionAnalyticsKeySnapshot: answer.questionAnalyticsKeySnapshot,
+        selectedOptionAnalyticsKeysSnapshot:
+          answer.selectedOptionAnalyticsKeysSnapshot,
         valueText: answer.valueText,
         valueJson: answer.valueJson as JsonValue | null,
         clientUpdatedAt: answer.clientUpdatedAt.toISOString(),

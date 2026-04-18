@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -54,6 +54,9 @@ export const surveyVersions = pgTable(
       table.surveyId,
       table.versionNumber,
     ),
+    uniqueIndex("survey_versions_active_unique")
+      .on(table.surveyId)
+      .where(sql`${table.status} = 'active'`),
     index("survey_versions_status_idx").on(table.status),
   ],
 );
@@ -96,6 +99,7 @@ export const surveyQuestions = pgTable(
       .notNull()
       .references(() => surveySections.id, { onDelete: "cascade" }),
     key: text("key").notNull(),
+    analyticsKey: text("analytics_key"),
     prompt: text("prompt").notNull(),
     helpText: text("help_text"),
     questionType: text("question_type").notNull(),
@@ -134,6 +138,7 @@ export const surveyQuestionOptions = pgTable(
       .notNull()
       .references(() => surveyQuestions.id, { onDelete: "cascade" }),
     key: text("key").notNull(),
+    analyticsKey: text("analytics_key"),
     label: text("label").notNull(),
     helpText: text("help_text"),
     sortOrder: integer("sort_order").notNull(),
@@ -221,10 +226,14 @@ export const surveyAnswers = pgTable(
       .notNull()
       .references(() => surveyQuestions.id, { onDelete: "cascade" }),
     questionKeySnapshot: text("question_key_snapshot").notNull(),
+    questionAnalyticsKeySnapshot: text("question_analytics_key_snapshot"),
     valueText: text("value_text"),
     valueJson: jsonb("value_json").$type<
       Record<string, unknown> | string[] | string | null
     >(),
+    selectedOptionAnalyticsKeysSnapshot: jsonb(
+      "selected_option_analytics_keys_snapshot",
+    ).$type<string[] | null>(),
     clientUpdatedAt: timestamp("client_updated_at", {
       withTimezone: true,
     }).notNull(),
@@ -239,6 +248,9 @@ export const surveyAnswers = pgTable(
     uniqueIndex("survey_answers_response_question_unique").on(
       table.responseId,
       table.questionId,
+    ),
+    index("survey_answers_question_analytics_key_snapshot_idx").on(
+      table.questionAnalyticsKeySnapshot,
     ),
   ],
 );

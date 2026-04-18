@@ -9,8 +9,10 @@
     "lint": "biome check",
     "format": "biome format --write",
     "db:push": "node --env-file=.env ./node_modules/drizzle-kit/bin.cjs push",
+    "db:survey:plan": "node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/db/surveys/cli.ts plan",
+    "db:survey:push": "node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/db/surveys/cli.ts push",
+    "db:survey:backfill-analytics": "node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/db/surveys/backfill.ts",
     "db:seed": "node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/db/seed/community-survey.ts",
-    "db:sync-copy": "node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/db/seed/sync-community-survey-copy.ts",
     "db:studio": "node --env-file=.env ./node_modules/drizzle-kit/bin.cjs studio"
   },
   "dependencies": {
