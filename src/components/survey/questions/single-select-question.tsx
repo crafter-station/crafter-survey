@@ -61,7 +61,7 @@ export function SingleSelectQuestion({
             >
               <label
                 className={[
-                  "flex items-start justify-between gap-2.5",
+                  "flex w-full items-start justify-between gap-2.5",
                   disabled ? "cursor-default" : "cursor-pointer",
                 ].join(" ")}
                 htmlFor={`${question.id}-${option.key}`}
