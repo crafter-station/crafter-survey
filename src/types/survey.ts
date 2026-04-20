@@ -178,10 +178,20 @@ export interface SurveyChatClusterState {
   unresolvedQuestionIds: string[];
 }
 
+export interface SurveyChatFormSaveEvent {
+  afterMessageId: string | null;
+  afterMessageIndex: number | null;
+  id: string;
+  source: "form";
+  savedQuestionIds: string[];
+  createdAt: string;
+}
+
 export interface SurveyChatMeta extends Record<string, unknown> {
   activeClusterKey: string | null;
   lastCompletedClusterKey: string | null;
   clusterStates: Record<string, SurveyChatClusterState>;
+  formSaveEvents: SurveyChatFormSaveEvent[];
   skippedQuestionIds: string[];
 }
 
@@ -212,6 +222,14 @@ export interface SaveRequestBody {
   answers: SaveAnswerPayload[];
 }
 
+export type SurveySaveErrorCode =
+  | "invalid_save_request"
+  | "rate_limited"
+  | "response_not_found"
+  | "response_forbidden"
+  | "response_submitted"
+  | "save_failed";
+
 export interface UnlockResponseBody {
   survey: SerializedSurvey;
   response: SerializedSurveyResponse;
@@ -220,6 +238,12 @@ export interface UnlockResponseBody {
 export interface SaveResponseBody {
   lastSavedAt: string;
   currentSectionId: string | null;
+}
+
+export interface SaveErrorResponseBody {
+  code: SurveySaveErrorCode;
+  message: string;
+  retryAfterSeconds?: number;
 }
 
 export interface SubmitResponseBody {

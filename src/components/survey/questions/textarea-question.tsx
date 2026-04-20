@@ -8,10 +8,12 @@ function getMaxLength(question: SurveyQuestion) {
 }
 
 export function TextareaQuestion({
+  disabled = false,
   question,
   value,
   onChange,
 }: {
+  disabled?: boolean;
   question: SurveyQuestion;
   value: string;
   onChange: (value: string) => void;
@@ -22,6 +24,7 @@ export function TextareaQuestion({
     <div className="space-y-3">
       <Textarea
         className="survey-input min-h-28 resize-y px-3 py-2.5 md:text-sm"
+        disabled={disabled}
         maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
         placeholder={question.placeholder ?? ""}

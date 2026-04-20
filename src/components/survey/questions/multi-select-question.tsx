@@ -17,10 +17,12 @@ function readUiString(
 }
 
 export function MultiSelectQuestion({
+  disabled = false,
   question,
   value,
   onChange,
 }: {
+  disabled?: boolean;
   question: SurveyQuestion;
   value: MultiSelectAnswerValue;
   onChange: (value: MultiSelectAnswerValue) => void;
@@ -42,13 +44,17 @@ export function MultiSelectQuestion({
           return (
             <div
               className={[
-                "survey-option cursor-pointer",
+                "survey-option",
+                disabled ? "cursor-default" : "cursor-pointer",
                 selected ? "survey-option-selected" : "",
               ].join(" ")}
               key={option.id}
             >
               <label
-                className="flex cursor-pointer items-start justify-between gap-2.5"
+                className={[
+                  "flex items-start justify-between gap-2.5",
+                  disabled ? "cursor-default" : "cursor-pointer",
+                ].join(" ")}
                 htmlFor={`${question.id}-${option.key}`}
               >
                 <div className="space-y-1">
@@ -62,8 +68,13 @@ export function MultiSelectQuestion({
                 <Checkbox
                   checked={selected}
                   className="mt-1 rounded-none border-border bg-background text-primary"
+                  disabled={disabled}
                   id={`${question.id}-${option.key}`}
                   onCheckedChange={() => {
+                    if (disabled) {
+                      return;
+                    }
+
                     if (selected) {
                       onChange({
                         choices: value.choices.filter(
@@ -107,6 +118,7 @@ export function MultiSelectQuestion({
       ) ? (
         <input
           className="survey-input"
+          disabled={disabled}
           onChange={(event) =>
             onChange({
               choices: value.choices,

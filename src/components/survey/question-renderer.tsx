@@ -67,6 +67,7 @@ export function QuestionRenderer({
   onChange,
   onSingleSelectCommit,
   question,
+  readOnly = false,
 }: {
   answer: SerializedAnswer | undefined;
   onChange: (next: {
@@ -75,6 +76,7 @@ export function QuestionRenderer({
   }) => void;
   onSingleSelectCommit?: () => void;
   question: SurveyQuestion;
+  readOnly?: boolean;
 }) {
   return (
     <Card
@@ -99,6 +101,7 @@ export function QuestionRenderer({
 
         {question.questionType === "long_text" ? (
           <TextareaQuestion
+            disabled={readOnly}
             onChange={(value) =>
               onChange({ valueText: value, valueJson: null })
             }
@@ -111,6 +114,7 @@ export function QuestionRenderer({
         question.questionType === "email" ||
         question.questionType === "phone" ? (
           <TextQuestion
+            disabled={readOnly}
             onChange={(value) =>
               onChange({ valueText: value, valueJson: null })
             }
@@ -121,7 +125,12 @@ export function QuestionRenderer({
 
         {question.questionType === "single_select" ? (
           <SingleSelectQuestion
+            disabled={readOnly}
             onChange={(value) => {
+              if (readOnly) {
+                return;
+              }
+
               onChange({
                 valueText: null,
                 valueJson: value as unknown as JsonValue,
@@ -136,12 +145,17 @@ export function QuestionRenderer({
 
         {question.questionType === "multi_select" ? (
           <MultiSelectQuestion
-            onChange={(value) =>
+            disabled={readOnly}
+            onChange={(value) => {
+              if (readOnly) {
+                return;
+              }
+
               onChange({
                 valueText: null,
                 valueJson: value as unknown as JsonValue,
-              })
-            }
+              });
+            }}
             question={question}
             value={readMultiSelectValue(answer)}
           />

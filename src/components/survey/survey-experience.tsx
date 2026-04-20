@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   type FormEvent,
@@ -12,9 +13,14 @@ import {
 
 import type {
   JsonValue,
+  SaveAnswerPayload,
+  SaveErrorResponseBody,
   SaveRequestBody,
+  SaveResponseBody,
   SerializedAnswer,
+  SerializedSurveyResponse,
   SurveyPageData,
+  UnlockResponseBody,
 } from "@/types/survey";
 
 import { AccessGate } from "./access-gate";
@@ -29,8 +35,16 @@ import { SurveyHeroChrome } from "./survey-hero-chrome";
 import { SurveyShell } from "./survey-shell";
 
 const MODE_STORAGE_KEY = "cs_survey_mode";
+const OUTBOX_STORAGE_KEY = "cs_survey_outbox_v1";
+const SURVEY_QUERY_KEY = ["survey-experience"] as const;
 
-type SaveState = "idle" | "saving" | "saved" | "error";
+interface PendingSurveyOutbox {
+  responseId: string;
+  currentSectionId: string | null;
+  touchSection: boolean;
+  answers: Record<string, SaveAnswerPayload>;
+  retryCount: number;
+}
 
 function readMultiSelectChoices(answer: SerializedAnswer | undefined) {
   const candidate = answer?.valueJson;
@@ -61,17 +75,167 @@ function getInitialSectionIndex(
   return index >= 0 ? index : 0;
 }
 
-function getSaveLabel(saveState: SaveState) {
-  switch (saveState) {
-    case "saving":
-      return "Guardando cambios...";
-    case "saved":
-      return "Guardado en la base de datos.";
-    case "error":
-      return "No pudimos guardar. Tus cambios siguen aquí y reintentaremos.";
-    case "idle":
-      return "Tus respuestas se guardan automáticamente mientras avanzas.";
+function createOutbox(
+  responseId: string,
+  currentSectionId: string | null,
+): PendingSurveyOutbox {
+  return {
+    responseId,
+    currentSectionId,
+    touchSection: false,
+    answers: {},
+    retryCount: 0,
+  };
+}
+
+function hasPendingOutbox(outbox: PendingSurveyOutbox | null) {
+  if (!outbox) {
+    return false;
   }
+
+  return outbox.touchSection || Object.keys(outbox.answers).length > 0;
+}
+
+function getOutboxStorageKey(responseId: string) {
+  return `${OUTBOX_STORAGE_KEY}:${responseId}`;
+}
+
+function normalizeOutbox(
+  outbox: PendingSurveyOutbox | null,
+): PendingSurveyOutbox | null {
+  if (!outbox) {
+    return null;
+  }
+
+  return hasPendingOutbox(outbox) ? outbox : null;
+}
+
+function readStoredOutbox(responseId: string): PendingSurveyOutbox | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(getOutboxStorageKey(responseId));
+
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<PendingSurveyOutbox> | null;
+
+    if (!parsed || parsed.responseId !== responseId) {
+      return null;
+    }
+
+    const answers: Record<string, SaveAnswerPayload> = {};
+
+    if (parsed.answers && typeof parsed.answers === "object") {
+      for (const [questionId, value] of Object.entries(parsed.answers)) {
+        if (!value || typeof value !== "object") {
+          continue;
+        }
+
+        if (
+          questionId.length > 0 &&
+          "questionId" in value &&
+          value.questionId === questionId &&
+          "clientUpdatedAt" in value &&
+          typeof value.clientUpdatedAt === "string"
+        ) {
+          answers[questionId] = {
+            questionId,
+            valueText:
+              "valueText" in value ? (value.valueText as string | null) : null,
+            valueJson:
+              "valueJson" in value
+                ? (value.valueJson as JsonValue | null)
+                : null,
+            clientUpdatedAt: value.clientUpdatedAt,
+          };
+        }
+      }
+    }
+
+    return normalizeOutbox({
+      responseId,
+      currentSectionId:
+        typeof parsed.currentSectionId === "string" ||
+        parsed.currentSectionId === null
+          ? parsed.currentSectionId
+          : null,
+      touchSection: parsed.touchSection === true,
+      answers,
+      retryCount:
+        typeof parsed.retryCount === "number" &&
+        Number.isFinite(parsed.retryCount)
+          ? parsed.retryCount
+          : 0,
+    });
+  } catch {
+    return null;
+  }
+}
+
+function mergePendingAnswers(
+  currentAnswers: Record<string, SerializedAnswer>,
+  pendingAnswers: Record<string, SaveAnswerPayload>,
+) {
+  const merged = { ...currentAnswers };
+
+  for (const [questionId, pendingAnswer] of Object.entries(pendingAnswers)) {
+    const currentAnswer = merged[questionId];
+
+    if (
+      currentAnswer &&
+      currentAnswer.clientUpdatedAt > pendingAnswer.clientUpdatedAt
+    ) {
+      continue;
+    }
+
+    merged[questionId] = {
+      questionId,
+      valueText: pendingAnswer.valueText,
+      valueJson: pendingAnswer.valueJson,
+      clientUpdatedAt: pendingAnswer.clientUpdatedAt,
+    };
+  }
+
+  return merged;
+}
+
+function hydrateClientData(
+  nextData: SurveyPageData,
+  storedOutbox: PendingSurveyOutbox | null = nextData.response
+    ? readStoredOutbox(nextData.response.id)
+    : null,
+) {
+  const nextResponse = nextData.response;
+  const shouldRestoreOutbox =
+    nextData.mode === "survey" && nextResponse && storedOutbox;
+  const mergedAnswers = shouldRestoreOutbox
+    ? mergePendingAnswers(nextResponse.answers, storedOutbox.answers)
+    : (nextResponse?.answers ?? {});
+  const nextSectionId =
+    shouldRestoreOutbox && storedOutbox.touchSection
+      ? storedOutbox.currentSectionId
+      : (nextResponse?.currentSectionId ?? null);
+
+  return {
+    mergedAnswers,
+    nextSectionId,
+    restoredOutbox: shouldRestoreOutbox ? storedOutbox : null,
+    pageData: {
+      ...nextData,
+      response: nextResponse
+        ? {
+            ...nextResponse,
+            currentSectionId: nextSectionId,
+            answers: mergedAnswers,
+          }
+        : null,
+    } satisfies SurveyPageData,
+  };
 }
 
 export function SurveyExperience({
@@ -81,36 +245,49 @@ export function SurveyExperience({
 }) {
   const reducedMotion = useReducedMotion();
 
-  const [mode, setMode] = useState(initialData.mode);
-  const [gate, setGate] = useState(initialData.gate);
-  const [survey, setSurvey] = useState(initialData.survey);
-  const [response, setResponse] = useState(initialData.response);
+  const queryClient = useQueryClient();
+  const initialClientStateRef = useRef<ReturnType<
+    typeof hydrateClientData
+  > | null>(null);
+  const restoredOutboxResponseIdRef = useRef<string | null>(null);
+
+  if (!initialClientStateRef.current) {
+    initialClientStateRef.current = hydrateClientData(initialData, null);
+  }
+
+  const initialClientState = initialClientStateRef.current;
+
+  const surveyStateQuery = useQuery({
+    gcTime: Infinity,
+    initialData: initialClientState.pageData,
+    queryFn: async () => initialClientState.pageData,
+    queryKey: SURVEY_QUERY_KEY,
+    retry: false,
+    staleTime: Infinity,
+  });
+
+  const pageData = surveyStateQuery.data;
+  const mode = pageData.mode;
+  const gate = pageData.gate;
+  const survey = pageData.survey;
+  const response = pageData.response;
   const [answers, setAnswers] = useState<Record<string, SerializedAnswer>>(
-    initialData.response?.answers ?? {},
+    initialClientState.mergedAnswers,
   );
   const [currentSectionIndex, setCurrentSectionIndex] = useState(
-    getInitialSectionIndex(
-      initialData.survey,
-      initialData.response?.currentSectionId,
-    ),
-  );
-  const [saveState, setSaveState] = useState<SaveState>(
-    initialData.mode === "survey" ? "saved" : "idle",
+    getInitialSectionIndex(survey, initialClientState.nextSectionId),
   );
   const [unlockCode, setUnlockCode] = useState("");
   const [unlockError, setUnlockError] = useState<string | null>(null);
-  const [unlockPending, setUnlockPending] = useState(false);
-  const [submitPending, setSubmitPending] = useState(false);
   const [direction, setDirection] = useState(1);
-  const [surveyMode, setSurveyMode] = useState<SurveyMode>("chat");
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(MODE_STORAGE_KEY);
-    if (stored === "chat" || stored === "form") {
-      setSurveyMode(stored);
+  const [surveyMode, setSurveyMode] = useState<SurveyMode>(() => {
+    if (typeof window === "undefined") {
+      return "chat";
     }
-  }, []);
+
+    const stored = window.localStorage.getItem(MODE_STORAGE_KEY);
+    return stored === "chat" || stored === "form" ? stored : "chat";
+  });
 
   function updateSurveyMode(nextMode: SurveyMode) {
     setSurveyMode(nextMode);
@@ -119,66 +296,234 @@ export function SurveyExperience({
     }
   }
 
-  const dirtyQuestionIdsRef = useRef(new Set<string>());
   const contentScrollRef = useRef<HTMLDivElement | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const saveStateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveQueueRef = useRef(Promise.resolve(true));
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const outboxRef = useRef<PendingSurveyOutbox | null>(null);
+  const answersRef = useRef(answers);
+  const responseRef = useRef(response);
 
   const currentSection = survey?.sections[currentSectionIndex] ?? null;
-  const saveLabel = getSaveLabel(saveState);
 
-  const setSavedState = useEffectEvent(() => {
-    setSaveState("saved");
+  answersRef.current = answers;
+  responseRef.current = response;
 
-    if (saveStateTimerRef.current) {
-      clearTimeout(saveStateTimerRef.current);
+  const clearRetryTimer = useEffectEvent(() => {
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
     }
-
-    saveStateTimerRef.current = setTimeout(() => {
-      setSaveState("idle");
-    }, 1800);
   });
 
-  const refreshFromServer = useEffectEvent(async () => {
-    if (mode !== "survey" || !response) return;
-    try {
+  const persistOutbox = useEffectEvent(
+    (nextOutbox: PendingSurveyOutbox | null) => {
+      const previousResponseId = outboxRef.current?.responseId ?? null;
+      const normalizedOutbox = normalizeOutbox(nextOutbox);
+
+      outboxRef.current = normalizedOutbox;
+
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      if (
+        previousResponseId &&
+        previousResponseId !== normalizedOutbox?.responseId
+      ) {
+        window.localStorage.removeItem(getOutboxStorageKey(previousResponseId));
+      }
+
+      if (!normalizedOutbox) {
+        const responseIdToClear = nextOutbox?.responseId ?? previousResponseId;
+
+        if (responseIdToClear) {
+          window.localStorage.removeItem(
+            getOutboxStorageKey(responseIdToClear),
+          );
+        }
+
+        return;
+      }
+
+      window.localStorage.setItem(
+        getOutboxStorageKey(normalizedOutbox.responseId),
+        JSON.stringify(normalizedOutbox),
+      );
+    },
+  );
+
+  const scheduleRetry = useEffectEvent(
+    (retryCount: number, retryAfterSeconds?: number) => {
+      clearRetryTimer();
+
+      const backoffMs = retryAfterSeconds
+        ? retryAfterSeconds * 1000
+        : Math.min(1000 * 2 ** Math.min(retryCount, 4), 15000);
+
+      retryTimerRef.current = setTimeout(() => {
+        retryTimerRef.current = null;
+        void flushDirty();
+      }, backoffMs);
+    },
+  );
+
+  const setSurveyPageData = useEffectEvent(
+    (
+      nextData: SurveyPageData | ((current: SurveyPageData) => SurveyPageData),
+    ) => {
+      queryClient.setQueryData<SurveyPageData>(SURVEY_QUERY_KEY, (current) => {
+        const base = current ?? initialClientState.pageData;
+
+        return typeof nextData === "function" ? nextData(base) : nextData;
+      });
+    },
+  );
+
+  const refreshMutation = useMutation<SurveyPageData, Error, string>({
+    mutationFn: async (responseId) => {
       const url = new URL("/api/survey/state", window.location.origin);
-      url.searchParams.set("responseId", response.id);
+      url.searchParams.set("responseId", responseId);
+
       const res = await fetch(url.toString(), { method: "GET" });
-      if (!res.ok) return;
+
+      if (!res.ok) {
+        throw new Error("Failed to refresh survey state.");
+      }
+
       const data = (await res.json().catch(() => null)) as {
         survey?: SurveyPageData["survey"];
         response?: SurveyPageData["response"];
       } | null;
-      if (!data?.survey || !data.response) return;
-      hydrateFromServer({
+
+      if (!data?.survey || !data.response) {
+        throw new Error("Missing refreshed survey state.");
+      }
+
+      return {
         mode: data.response.status === "submitted" ? "submitted" : "survey",
         gate,
         survey: data.survey,
         response: data.response,
         message: null,
+      } satisfies SurveyPageData;
+    },
+  });
+
+  const unlockMutation = useMutation<UnlockResponseBody, Error, string>({
+    mutationFn: async (code) => {
+      const unlockResponse = await fetch("/api/survey/unlock", {
+        body: JSON.stringify({ code }),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
       });
+
+      const payload = (await unlockResponse.json().catch(() => null)) as {
+        message?: string;
+        response?: SurveyPageData["response"];
+        survey?: SurveyPageData["survey"];
+      } | null;
+
+      if (!unlockResponse.ok || !payload?.response || !payload.survey) {
+        throw new Error(
+          payload?.message ?? "No pudimos desbloquear el survey.",
+        );
+      }
+
+      return {
+        response: payload.response,
+        survey: payload.survey,
+      };
+    },
+  });
+
+  const saveMutation = useMutation<
+    { data: SaveErrorResponseBody | SaveResponseBody | null; ok: boolean },
+    Error,
+    SaveRequestBody
+  >({
+    mutationFn: async (payload) => {
+      const saveResponse = await fetch("/api/survey/save", {
+        body: JSON.stringify(payload),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
+      });
+
+      const data = (await saveResponse.json().catch(() => null)) as
+        | SaveErrorResponseBody
+        | SaveResponseBody
+        | null;
+
+      return {
+        data,
+        ok: saveResponse.ok,
+      };
+    },
+  });
+
+  const submitMutation = useMutation<
+    SerializedSurveyResponse,
+    Error,
+    SaveRequestBody
+  >({
+    mutationFn: async (payload) => {
+      const submitResponse = await fetch("/api/survey/submit", {
+        body: JSON.stringify(payload),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
+      });
+
+      const data = (await submitResponse.json().catch(() => null)) as {
+        message?: string;
+        response?: SurveyPageData["response"];
+      } | null;
+
+      if (!submitResponse.ok || !data?.response) {
+        throw new Error(data?.message ?? "Failed to submit survey.");
+      }
+
+      return data.response;
+    },
+  });
+
+  const unlockPending = unlockMutation.isPending;
+  const submitPending = submitMutation.isPending;
+
+  const refreshFromServer = useEffectEvent(async () => {
+    if (mode !== "survey" || !response) return;
+
+    try {
+      const nextData = await refreshMutation.mutateAsync(response.id);
+      hydrateFromServer(nextData);
     } catch {
       // ignore
     }
   });
 
   const hydrateFromServer = useEffectEvent((nextData: SurveyPageData) => {
-    setMode(nextData.mode);
-    setGate(nextData.gate);
-    setSurvey(nextData.survey);
-    setResponse(nextData.response);
-    setAnswers(nextData.response?.answers ?? {});
+    const hydrated = hydrateClientData(nextData);
+
+    clearRetryTimer();
+    setSurveyPageData(hydrated.pageData);
+    setAnswers(hydrated.mergedAnswers);
     setCurrentSectionIndex(
-      getInitialSectionIndex(
-        nextData.survey,
-        nextData.response?.currentSectionId,
-      ),
+      getInitialSectionIndex(nextData.survey, hydrated.nextSectionId),
     );
-    dirtyQuestionIdsRef.current.clear();
     setUnlockError(null);
-    setSavedState();
+
+    if (hydrated.restoredOutbox) {
+      persistOutbox(hydrated.restoredOutbox);
+      scheduleRetry(hydrated.restoredOutbox.retryCount);
+      return;
+    }
+
+    persistOutbox(null);
   });
 
   const flushDirty = useEffectEvent(
@@ -191,85 +536,152 @@ export function SurveyExperience({
       keepalive?: boolean;
       nextSectionId?: string | null;
     } = {}) => {
-      if (!response || mode !== "survey") {
+      if (mode !== "survey") {
         return true;
       }
 
-      const dirtyIds = Array.from(dirtyQuestionIdsRef.current);
-      const targetSectionId = nextSectionId ?? currentSection?.id ?? null;
+      const activeResponse = responseRef.current;
+
+      if (!activeResponse) {
+        return true;
+      }
+
+      const currentOutbox =
+        outboxRef.current?.responseId === activeResponse.id
+          ? outboxRef.current
+          : createOutbox(activeResponse.id, activeResponse.currentSectionId);
+      const targetSectionId =
+        nextSectionId ??
+        currentOutbox.currentSectionId ??
+        currentSection?.id ??
+        activeResponse.currentSectionId ??
+        null;
+      const shouldTouchSection = forceTouch || currentOutbox.touchSection;
+      const pendingAnswers = Object.values(currentOutbox.answers);
 
       if (autosaveTimerRef.current) {
         clearTimeout(autosaveTimerRef.current);
         autosaveTimerRef.current = null;
       }
 
-      if (!dirtyIds.length && !forceTouch) {
+      if (!pendingAnswers.length && !shouldTouchSection) {
         return true;
       }
 
       const payload: SaveRequestBody = {
-        responseId: response.id,
+        responseId: activeResponse.id,
         currentSectionId: targetSectionId,
-        answers: dirtyIds.map((questionId) => {
-          const answer = answers[questionId];
-
-          return {
-            questionId,
-            valueText: answer?.valueText ?? null,
-            valueJson: answer?.valueJson ?? null,
-            clientUpdatedAt:
-              answer?.clientUpdatedAt ?? new Date().toISOString(),
-          };
-        }),
+        answers: pendingAnswers,
       };
 
       const execute = async () => {
         try {
-          setSaveState("saving");
-
-          const saveRequest = fetch("/api/survey/save", {
-            body: JSON.stringify(payload),
-            headers: {
-              "content-type": "application/json",
-            },
-            keepalive,
-            method: "POST",
-          });
-
           if (keepalive) {
-            void saveRequest;
+            void fetch("/api/survey/save", {
+              body: JSON.stringify(payload),
+              headers: {
+                "content-type": "application/json",
+              },
+              keepalive: true,
+              method: "POST",
+            });
             return true;
           }
 
-          const saveResponse = await saveRequest;
-          const data = (await saveResponse.json().catch(() => null)) as {
-            lastSavedAt?: string;
-            message?: string;
-            currentSectionId?: string | null;
-          } | null;
+          const result = await saveMutation.mutateAsync(payload);
+          const data = result.data;
 
-          if (!saveResponse.ok) {
-            throw new Error(data?.message ?? "Failed to save the survey.");
+          if (!result.ok) {
+            const errorData = data as SaveErrorResponseBody | null;
+
+            if (errorData?.code === "response_submitted") {
+              clearRetryTimer();
+              persistOutbox(null);
+              await refreshFromServer();
+              return false;
+            }
+
+            if (
+              errorData?.code === "response_forbidden" ||
+              errorData?.code === "response_not_found" ||
+              errorData?.code === "invalid_save_request"
+            ) {
+              clearRetryTimer();
+              persistOutbox(null);
+              return false;
+            }
+
+            const latestOutbox =
+              outboxRef.current?.responseId === payload.responseId
+                ? outboxRef.current
+                : currentOutbox;
+            const nextRetryCount = latestOutbox.retryCount + 1;
+
+            persistOutbox({
+              ...latestOutbox,
+              currentSectionId: targetSectionId,
+              touchSection: shouldTouchSection || latestOutbox.touchSection,
+              retryCount: nextRetryCount,
+            });
+            scheduleRetry(nextRetryCount, errorData?.retryAfterSeconds);
+            return false;
           }
 
-          for (const dirtyId of dirtyIds) {
-            dirtyQuestionIdsRef.current.delete(dirtyId);
+          const responseData = data as SaveResponseBody | null;
+          const latestAnswers = answersRef.current;
+          const activeOutbox =
+            outboxRef.current?.responseId === payload.responseId
+              ? outboxRef.current
+              : currentOutbox;
+          const nextOutbox: PendingSurveyOutbox = {
+            ...activeOutbox,
+            currentSectionId: responseData?.currentSectionId ?? targetSectionId,
+            touchSection: false,
+            retryCount: 0,
+            answers: { ...activeOutbox.answers },
+          };
+
+          for (const pendingAnswer of payload.answers) {
+            const currentAnswer = latestAnswers[pendingAnswer.questionId];
+
+            if (
+              currentAnswer?.clientUpdatedAt === pendingAnswer.clientUpdatedAt
+            ) {
+              delete nextOutbox.answers[pendingAnswer.questionId];
+            }
           }
 
-          setResponse((current) =>
-            current
+          clearRetryTimer();
+          persistOutbox(nextOutbox);
+          setSurveyPageData((current) =>
+            current.response
               ? {
                   ...current,
-                  currentSectionId: data?.currentSectionId ?? targetSectionId,
-                  lastSavedAt: data?.lastSavedAt ?? current.lastSavedAt,
+                  response: {
+                    ...current.response,
+                    currentSectionId:
+                      responseData?.currentSectionId ?? targetSectionId,
+                    lastSavedAt:
+                      responseData?.lastSavedAt ?? current.response.lastSavedAt,
+                  },
                 }
               : current,
           );
-
-          setSavedState();
           return true;
         } catch {
-          setSaveState("error");
+          const latestOutbox =
+            outboxRef.current?.responseId === payload.responseId
+              ? outboxRef.current
+              : currentOutbox;
+          const nextRetryCount = latestOutbox.retryCount + 1;
+
+          persistOutbox({
+            ...latestOutbox,
+            currentSectionId: targetSectionId,
+            touchSection: shouldTouchSection || latestOutbox.touchSection,
+            retryCount: nextRetryCount,
+          });
+          scheduleRetry(nextRetryCount);
           return false;
         }
       };
@@ -343,7 +755,7 @@ export function SurveyExperience({
     if (
       !response ||
       mode !== "survey" ||
-      dirtyQuestionIdsRef.current.size === 0
+      !hasPendingOutbox(outboxRef.current)
     ) {
       return;
     }
@@ -357,16 +769,22 @@ export function SurveyExperience({
         clearTimeout(autosaveTimerRef.current);
       }
 
-      if (saveStateTimerRef.current) {
-        clearTimeout(saveStateTimerRef.current);
-      }
+      clearRetryTimer();
     };
-  }, []);
+  }, [clearRetryTimer]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         sendKeepaliveSave();
+        return;
+      }
+
+      if (
+        document.visibilityState === "visible" &&
+        hasPendingOutbox(outboxRef.current)
+      ) {
+        void flushDirty();
       }
     };
 
@@ -381,12 +799,64 @@ export function SurveyExperience({
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", handlePageHide);
     };
-  }, [sendKeepaliveSave]);
+  }, [flushDirty, sendKeepaliveSave]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      if (hasPendingOutbox(outboxRef.current)) {
+        void flushDirty();
+      }
+    };
+
+    window.addEventListener("online", handleOnline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [flushDirty]);
+
+  useEffect(() => {
+    if (
+      !initialData.response ||
+      !initialData.survey ||
+      initialData.mode !== "survey"
+    ) {
+      return;
+    }
+
+    if (restoredOutboxResponseIdRef.current === initialData.response.id) {
+      return;
+    }
+
+    restoredOutboxResponseIdRef.current = initialData.response.id;
+
+    const storedOutbox = readStoredOutbox(initialData.response.id);
+
+    if (!storedOutbox) {
+      return;
+    }
+
+    const hydrated = hydrateClientData(initialData, storedOutbox);
+
+    setSurveyPageData(hydrated.pageData);
+    setAnswers(hydrated.mergedAnswers);
+    setCurrentSectionIndex(
+      getInitialSectionIndex(initialData.survey, hydrated.nextSectionId),
+    );
+    persistOutbox(storedOutbox);
+    scheduleRetry(storedOutbox.retryCount);
+  }, [initialData, persistOutbox, scheduleRetry, setSurveyPageData]);
 
   function updateAnswer(
     questionId: string,
     value: { valueText: string | null; valueJson: JsonValue | null },
   ) {
+    const activeResponse = responseRef.current;
+
+    if (!activeResponse) {
+      return;
+    }
+
     const nextAnswer: SerializedAnswer = {
       questionId,
       valueText: value.valueText,
@@ -398,34 +868,36 @@ export function SurveyExperience({
       ...current,
       [questionId]: nextAnswer,
     }));
-    dirtyQuestionIdsRef.current.add(questionId);
+    persistOutbox({
+      ...(outboxRef.current?.responseId === activeResponse.id
+        ? outboxRef.current
+        : createOutbox(
+            activeResponse.id,
+            currentSection?.id ?? activeResponse.currentSectionId,
+          )),
+      currentSectionId: currentSection?.id ?? activeResponse.currentSectionId,
+      answers: {
+        ...(outboxRef.current?.responseId === activeResponse.id
+          ? outboxRef.current.answers
+          : {}),
+        [questionId]: {
+          questionId,
+          valueText: nextAnswer.valueText,
+          valueJson: nextAnswer.valueJson,
+          clientUpdatedAt: nextAnswer.clientUpdatedAt,
+        },
+      },
+      retryCount: 0,
+    });
     scheduleAutosave();
   }
 
   async function handleUnlockSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setUnlockPending(true);
     setUnlockError(null);
 
     try {
-      const unlockResponse = await fetch("/api/survey/unlock", {
-        body: JSON.stringify({ code: unlockCode }),
-        headers: {
-          "content-type": "application/json",
-        },
-        method: "POST",
-      });
-
-      const payload = (await unlockResponse.json().catch(() => null)) as {
-        message?: string;
-        response?: SurveyPageData["response"];
-        survey?: SurveyPageData["survey"];
-      } | null;
-
-      if (!unlockResponse.ok || !payload?.response || !payload.survey) {
-        setUnlockError(payload?.message ?? "No pudimos desbloquear el survey.");
-        return;
-      }
+      const payload = await unlockMutation.mutateAsync(unlockCode);
 
       hydrateFromServer({
         mode: payload.response.status === "submitted" ? "submitted" : "survey",
@@ -435,8 +907,12 @@ export function SurveyExperience({
         message: null,
       });
       setUnlockCode("");
-    } finally {
-      setUnlockPending(false);
+    } catch (error) {
+      setUnlockError(
+        error instanceof Error
+          ? error.message
+          : "No pudimos desbloquear el survey.",
+      );
     }
   }
 
@@ -448,13 +924,27 @@ export function SurveyExperience({
     const nextIndex = currentSectionIndex - 1;
     const targetSection = survey.sections[nextIndex];
 
-    const didSave = await flushDirty({
-      forceTouch: true,
-      nextSectionId: targetSection.id,
-    });
-
-    if (!didSave) {
-      return;
+    if (mode === "survey") {
+      persistOutbox({
+        ...(outboxRef.current?.responseId === response.id
+          ? outboxRef.current
+          : createOutbox(response.id, targetSection.id)),
+        currentSectionId: targetSection.id,
+        touchSection: true,
+        retryCount: 0,
+      });
+      setSurveyPageData((current) =>
+        current.response
+          ? {
+              ...current,
+              response: {
+                ...current.response,
+                currentSectionId: targetSection.id,
+              },
+            }
+          : current,
+      );
+      void flushDirty({ forceTouch: true, nextSectionId: targetSection.id });
     }
 
     setDirection(-1);
@@ -472,13 +962,31 @@ export function SurveyExperience({
     const nextIndex = currentSectionIndex + 1;
     const targetSection = survey.sections[nextIndex];
 
-    const didSave = await flushDirty({
-      forceTouch: true,
-      nextSectionId: targetSection?.id ?? currentSection.id,
-    });
-
-    if (!didSave || !targetSection) {
+    if (!targetSection) {
       return;
+    }
+
+    if (mode === "survey") {
+      persistOutbox({
+        ...(outboxRef.current?.responseId === response.id
+          ? outboxRef.current
+          : createOutbox(response.id, targetSection.id)),
+        currentSectionId: targetSection.id,
+        touchSection: true,
+        retryCount: 0,
+      });
+      setSurveyPageData((current) =>
+        current.response
+          ? {
+              ...current,
+              response: {
+                ...current.response,
+                currentSectionId: targetSection.id,
+              },
+            }
+          : current,
+      );
+      void flushDirty({ forceTouch: true, nextSectionId: targetSection.id });
     }
 
     setDirection(1);
@@ -502,13 +1010,28 @@ export function SurveyExperience({
     }
 
     const targetSection = survey.sections[nextIndex];
-    const didSave = await flushDirty({
-      forceTouch: true,
-      nextSectionId: targetSection.id,
-    });
 
-    if (!didSave) {
-      return;
+    if (mode === "survey") {
+      persistOutbox({
+        ...(outboxRef.current?.responseId === response.id
+          ? outboxRef.current
+          : createOutbox(response.id, targetSection.id)),
+        currentSectionId: targetSection.id,
+        touchSection: true,
+        retryCount: 0,
+      });
+      setSurveyPageData((current) =>
+        current.response
+          ? {
+              ...current,
+              response: {
+                ...current.response,
+                currentSectionId: targetSection.id,
+              },
+            }
+          : current,
+      );
+      void flushDirty({ forceTouch: true, nextSectionId: targetSection.id });
     }
 
     setDirection(nextIndex > currentSectionIndex ? 1 : -1);
@@ -523,48 +1046,29 @@ export function SurveyExperience({
       return;
     }
 
-    setSubmitPending(true);
-
     try {
-      const dirtyIds = Array.from(dirtyQuestionIdsRef.current);
-      const submitResponse = await fetch("/api/survey/submit", {
-        body: JSON.stringify({
-          responseId: response.id,
-          currentSectionId: currentSection.id,
-          answers: dirtyIds.map((questionId) => {
-            const answer = answers[questionId];
+      clearRetryTimer();
 
-            return {
-              questionId,
-              valueText: answer?.valueText ?? null,
-              valueJson: answer?.valueJson ?? null,
-              clientUpdatedAt:
-                answer?.clientUpdatedAt ?? new Date().toISOString(),
-            };
-          }),
-        }),
-        headers: {
-          "content-type": "application/json",
-        },
-        method: "POST",
+      const pendingAnswers = Object.values(
+        outboxRef.current?.responseId === response.id
+          ? outboxRef.current.answers
+          : {},
+      );
+      const submittedResponse = await submitMutation.mutateAsync({
+        responseId: response.id,
+        currentSectionId: currentSection.id,
+        answers: pendingAnswers,
       });
 
-      const payload = (await submitResponse.json().catch(() => null)) as {
-        message?: string;
-        response?: SurveyPageData["response"];
-      } | null;
-
-      if (!submitResponse.ok || !payload?.response) {
-        setSaveState("error");
-        return;
-      }
-
-      dirtyQuestionIdsRef.current.clear();
-      setResponse(payload.response);
-      setMode("submitted");
-      setSavedState();
-    } finally {
-      setSubmitPending(false);
+      persistOutbox(null);
+      setAnswers(submittedResponse.answers);
+      setSurveyPageData({
+        ...pageData,
+        mode: "submitted",
+        response: submittedResponse,
+      });
+    } catch {
+      scheduleRetry(0);
     }
   }
 
@@ -681,12 +1185,34 @@ export function SurveyExperience({
         canGoNext={currentSectionIndex < survey.sections.length - 1}
         currentSectionIndex={currentSectionIndex}
         currentSectionId={currentSection.id}
-        isBusy={submitPending || saveState === "saving"}
+        isSubmitting={submitPending}
         onBack={handleBack}
         onJump={handleSectionJump}
         onNext={handleNext}
         onSubmit={handleSubmit}
-        saveLabel={saveLabel}
+        saveLabel={null}
+        sections={survey.sections.map((section) => ({
+          id: section.id,
+          title: section.title,
+        }))}
+        totalSections={survey.sections.length}
+      />
+    ) : null;
+
+  const reviewFooter =
+    mode === "submitted" && survey && currentSection ? (
+      <ProgressNav
+        canGoBack={currentSectionIndex > 0}
+        canGoNext={currentSectionIndex < survey.sections.length - 1}
+        currentSectionIndex={currentSectionIndex}
+        currentSectionId={currentSection.id}
+        isReadOnly
+        isSubmitting={false}
+        onBack={handleBack}
+        onJump={handleSectionJump}
+        onNext={handleNext}
+        onSubmit={handleSubmit}
+        saveLabel={null}
         sections={survey.sections.map((section) => ({
           id: section.id,
           title: section.title,
@@ -741,20 +1267,55 @@ export function SurveyExperience({
   }
 
   if (mode === "submitted") {
+    if (!survey || !currentSection) {
+      return null;
+    }
+
     return (
-      <SurveyShell compact chrome={compactChrome}>
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-5 sm:px-6 sm:py-7">
-          <div className="space-y-1">
-            <p className="survey-kicker text-[0.66rem] uppercase tracking-[0.22em] text-muted-foreground">
-              Cierre
-            </p>
-            <h2 className="survey-heading max-w-3xl text-2xl leading-tight font-medium tracking-[-0.03em] text-foreground sm:text-3xl">
-              {shellTitle}
-            </h2>
+      <SurveyShell
+        compact
+        chrome={compactChrome}
+        contentRef={contentScrollRef}
+        footer={reviewFooter ?? undefined}
+      >
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-5 sm:px-6 sm:py-7">
+          <div className="space-y-4">
+            <CompletionScreen
+              description={survey.completionDescription ?? null}
+            />
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <h2 className="survey-heading max-w-3xl text-2xl leading-tight font-medium tracking-[-0.03em] text-foreground sm:text-3xl">
+                  {currentSection.title}
+                </h2>
+                {currentSection.description ? (
+                  <p className="survey-body survey-muted max-w-2xl text-sm leading-6 sm:text-base sm:leading-7">
+                    {currentSection.description}
+                  </p>
+                ) : null}
+              </div>
+            </div>
           </div>
-          <CompletionScreen
-            description={survey?.completionDescription ?? null}
-          />
+
+          <div className="space-y-4 pb-4">
+            <AnimatePresence initial={false} mode="wait">
+              <SectionPanel
+                direction={reducedMotion ? 0 : direction}
+                panelKey={currentSection.id}
+              >
+                {currentSection.questions.map((question) => (
+                  <QuestionRenderer
+                    answer={answers[question.id]}
+                    key={question.id}
+                    onChange={() => undefined}
+                    question={question}
+                    readOnly
+                  />
+                ))}
+              </SectionPanel>
+            </AnimatePresence>
+          </div>
         </div>
       </SurveyShell>
     );
@@ -782,21 +1343,6 @@ export function SurveyExperience({
       >
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-5 sm:px-6 sm:py-7">
           <div className="space-y-3">
-            <div className="space-y-1">
-              <div className="survey-kicker flex items-center justify-between gap-4 text-[0.69rem] uppercase tracking-[0.26em] text-muted-foreground">
-                <span>{`Sección ${currentSectionIndex + 1}`}</span>
-                <span>{Math.round(formProgressValue * 100)}%</span>
-              </div>
-              <div className="survey-progress-track h-[2px] overflow-hidden rounded-full">
-                <div
-                  className="survey-progress-fill h-full transition-[width] duration-300 ease-out"
-                  style={{
-                    width: `${Math.max(formProgressValue, 0.04) * 100}%`,
-                  }}
-                />
-              </div>
-            </div>
-
             <div className="space-y-1">
               <h2 className="survey-heading max-w-3xl text-2xl leading-tight font-medium tracking-[-0.03em] text-foreground sm:text-3xl">
                 {currentSection.title}
@@ -830,8 +1376,9 @@ export function SurveyExperience({
                 {currentSection.key === "cierre" &&
                 involvementSelections.length > 0 ? (
                   <div className="survey-muted rounded-[20px] border border-border/70 bg-background/70 px-4 py-4 text-sm leading-7 sm:px-5">
-                    Si nos dejas tu correo, podemos escribirte directamente
-                    sobre: {involvementSelections.join(", ")}.
+                    Si nos dejas tu correo o tu numero, podemos contactarte si
+                    ganas uno de los 5 premios de 20 USD en Cursor que vamos a
+                    sortear entre quienes completen esta encuesta.
                   </div>
                 ) : null}
               </SectionPanel>

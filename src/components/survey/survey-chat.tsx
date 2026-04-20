@@ -25,6 +25,7 @@ import {
 import { PromptInput } from "@/components/ai-elements/prompt-input";
 import type {
   SerializedSurveyResponse,
+  SurveyChatFormSaveEvent,
   SurveyChatMessage,
 } from "@/types/survey";
 
@@ -105,6 +106,108 @@ function getStepUpdates(parts: UIMessagePart<UIDataTypes, UITools>[]) {
   return updates;
 }
 
+function getFormSaveEventLabel(event: SurveyChatFormSaveEvent) {
+  const savedCount = event.savedQuestionIds.length;
+
+  return savedCount === 1
+    ? "1 respuesta registrada en formulario"
+    : `${savedCount} respuestas registradas en formulario`;
+}
+
+function collapseFormSaveEvents(events: SurveyChatFormSaveEvent[]) {
+  if (events.length === 0) {
+    return null;
+  }
+
+  const savedQuestionIds = Array.from(
+    new Set(events.flatMap((event) => event.savedQuestionIds)),
+  );
+  const latestEvent = events[events.length - 1];
+
+  return {
+    id: latestEvent.id,
+    label: getFormSaveEventLabel({
+      ...latestEvent,
+      savedQuestionIds,
+    }),
+  };
+}
+
+function resolveFormSaveEvents({
+  formSaveEvents,
+  messages,
+}: {
+  formSaveEvents: SurveyChatFormSaveEvent[];
+  messages: SurveyChatMessage[];
+}) {
+  const messageIndexById = new Map<string, number>();
+
+  messages.forEach((message, index) => {
+    if (message.id) {
+      messageIndexById.set(message.id, index);
+    }
+  });
+
+  const eventsByMessageIndex = new Map<number, SurveyChatFormSaveEvent[]>();
+  const unanchored: SurveyChatFormSaveEvent[] = [];
+
+  for (const event of formSaveEvents) {
+    const resolvedIndex =
+      (event.afterMessageId
+        ? messageIndexById.get(event.afterMessageId)
+        : undefined) ?? event.afterMessageIndex;
+
+    if (
+      typeof resolvedIndex === "number" &&
+      resolvedIndex >= 0 &&
+      resolvedIndex < messages.length
+    ) {
+      const existing = eventsByMessageIndex.get(resolvedIndex) ?? [];
+      existing.push(event);
+      eventsByMessageIndex.set(resolvedIndex, existing);
+      continue;
+    }
+
+    unanchored.push(event);
+  }
+
+  const sortByCreatedAt = (
+    left: SurveyChatFormSaveEvent,
+    right: SurveyChatFormSaveEvent,
+  ) => left.createdAt.localeCompare(right.createdAt);
+
+  const collapsedByMessageIndex = new Map<
+    number,
+    { id: string; label: string }
+  >();
+
+  for (const [messageIndex, events] of eventsByMessageIndex.entries()) {
+    events.sort(sortByCreatedAt);
+    const collapsed = collapseFormSaveEvents(events);
+
+    if (collapsed) {
+      collapsedByMessageIndex.set(messageIndex, collapsed);
+    }
+  }
+
+  unanchored.sort(sortByCreatedAt);
+
+  return {
+    byMessageIndex: collapsedByMessageIndex,
+    trailing: collapseFormSaveEvents(unanchored),
+  };
+}
+
+function UpdatePill({ label }: { label: string }) {
+  return (
+    <div className="flex justify-center">
+      <div className="survey-kicker rounded-full border border-border/70 bg-background/80 px-3 py-1 text-[0.62rem] tracking-[0.18em] text-muted-foreground uppercase shadow-sm backdrop-blur-xl">
+        {label}
+      </div>
+    </div>
+  );
+}
+
 export function useSurveyChat({
   response,
   onConversationUpdated,
@@ -139,6 +242,15 @@ export function useSurveyChat({
     setMessages(response.chatState?.messages ?? []);
   }, [response.chatState?.messages, setMessages]);
 
+  const formSaveEventsByAnchor = useMemo(
+    () =>
+      resolveFormSaveEvents({
+        formSaveEvents: response.chatState?.meta.formSaveEvents ?? [],
+        messages,
+      }),
+    [messages, response.chatState?.meta.formSaveEvents],
+  );
+
   const isBusy = status === "streaming" || status === "submitted";
 
   async function handleSubmit({ text }: { text: string }) {
@@ -161,8 +273,7 @@ export function useSurveyChat({
             <ConversationContent className="gap-5 pb-8 pt-6 sm:pb-10 sm:pt-8">
               {messages.flatMap((message, messageIndex) => {
                 const steps = getMessageStepParts(message);
-
-                return steps.flatMap((step, stepIndex) => {
+                const items = steps.flatMap((step, stepIndex) => {
                   const text = getStepText(step);
                   const updates = getStepUpdates(step);
 
@@ -170,10 +281,10 @@ export function useSurveyChat({
                     return [];
                   }
 
-                  const items = [];
+                  const stepItems = [];
 
                   if (text) {
-                    items.push(
+                    stepItems.push(
                       <Message
                         from={message.role}
                         key={`${message.id || "message"}:${messageIndex}:${stepIndex}:${message.role}`}
@@ -190,21 +301,37 @@ export function useSurveyChat({
                   }
 
                   updates.forEach((update, updateIndex) => {
-                    items.push(
-                      <div
-                        className="flex justify-center"
+                    stepItems.push(
+                      <UpdatePill
                         key={`${message.id || "message"}:${messageIndex}:${stepIndex}:update:${updateIndex}`}
-                      >
-                        <div className="survey-kicker rounded-full border border-border/70 bg-background/80 px-3 py-1 text-[0.62rem] tracking-[0.18em] text-muted-foreground uppercase shadow-sm backdrop-blur-xl">
-                          {update}
-                        </div>
-                      </div>,
+                        label={update}
+                      />,
                     );
                   });
 
-                  return items;
+                  return stepItems;
                 });
+
+                const formSaveEvent =
+                  formSaveEventsByAnchor.byMessageIndex.get(messageIndex);
+
+                if (formSaveEvent) {
+                  items.push(
+                    <UpdatePill
+                      key={`form-save:${formSaveEvent.id}`}
+                      label={formSaveEvent.label}
+                    />,
+                  );
+                }
+
+                return items;
               })}
+              {formSaveEventsByAnchor.trailing ? (
+                <UpdatePill
+                  key={`form-save:${formSaveEventsByAnchor.trailing.id}`}
+                  label={formSaveEventsByAnchor.trailing.label}
+                />
+              ) : null}
               {status === "submitted" ? (
                 <Message from="assistant">
                   <MessageContent>

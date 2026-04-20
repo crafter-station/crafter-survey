@@ -2,6 +2,7 @@ import type {
   SerializedAnswer,
   SerializedSurvey,
   SurveyChatClusterState,
+  SurveyChatFormSaveEvent,
   SurveyChatMessage,
   SurveyChatMeta,
   SurveyQuestion,
@@ -53,6 +54,39 @@ export function normalizeSurveyChatMeta(meta: unknown): SurveyChatMeta {
     candidate?.clusterStates && typeof candidate.clusterStates === "object"
       ? candidate.clusterStates
       : {};
+  const formSaveEvents = Array.isArray(candidate?.formSaveEvents)
+    ? candidate.formSaveEvents
+        .filter((event): event is SurveyChatFormSaveEvent =>
+          Boolean(
+            event &&
+              typeof event === "object" &&
+              (typeof event.afterMessageId === "string" ||
+                event.afterMessageId === null ||
+                event.afterMessageId === undefined) &&
+              (typeof event.afterMessageIndex === "number" ||
+                event.afterMessageIndex === null ||
+                event.afterMessageIndex === undefined) &&
+              typeof event.id === "string" &&
+              event.source === "form" &&
+              typeof event.createdAt === "string" &&
+              Array.isArray(event.savedQuestionIds) &&
+              event.savedQuestionIds.every(
+                (questionId) => typeof questionId === "string",
+              ),
+          ),
+        )
+        .map((event) => ({
+          ...event,
+          afterMessageId:
+            typeof event.afterMessageId === "string"
+              ? event.afterMessageId
+              : null,
+          afterMessageIndex:
+            typeof event.afterMessageIndex === "number"
+              ? event.afterMessageIndex
+              : null,
+        }))
+    : [];
 
   return {
     activeClusterKey:
@@ -63,6 +97,7 @@ export function normalizeSurveyChatMeta(meta: unknown): SurveyChatMeta {
       typeof candidate?.lastCompletedClusterKey === "string"
         ? candidate.lastCompletedClusterKey
         : null,
+    formSaveEvents,
     skippedQuestionIds: Array.from(
       new Set(
         Array.isArray(candidate?.skippedQuestionIds)
@@ -177,6 +212,28 @@ function buildClusterState(
   };
 }
 
+function pruneSkippedQuestionIds({
+  survey,
+  answers,
+  skippedQuestionIds,
+}: {
+  survey: SerializedSurvey;
+  answers: Record<string, SerializedAnswer>;
+  skippedQuestionIds: string[];
+}) {
+  const questionIndex = getSurveyQuestionIndex(survey);
+
+  return skippedQuestionIds.filter((questionId) => {
+    const entry = questionIndex.get(questionId);
+
+    if (!entry) {
+      return false;
+    }
+
+    return !isQuestionAnswered(entry.question, answers[questionId]);
+  });
+}
+
 export function buildSurveyChatMeta({
   survey,
   answers,
@@ -190,10 +247,15 @@ export function buildSurveyChatMeta({
 }): SurveyChatMeta {
   const normalizedMeta = normalizeSurveyChatMeta(meta);
   const playbook = resolveConversationPlaybook(survey);
+  const effectiveSkippedQuestionIds = pruneSkippedQuestionIds({
+    survey,
+    answers,
+    skippedQuestionIds: normalizedMeta.skippedQuestionIds,
+  });
   const clusterStates = Object.fromEntries(
     playbook.map((cluster) => [
       cluster.key,
-      buildClusterState(cluster, answers, normalizedMeta.skippedQuestionIds),
+      buildClusterState(cluster, answers, effectiveSkippedQuestionIds),
     ]),
   ) as Record<string, SurveyChatClusterState>;
 
@@ -221,7 +283,8 @@ export function buildSurveyChatMeta({
   return {
     activeClusterKey,
     lastCompletedClusterKey,
-    skippedQuestionIds: normalizedMeta.skippedQuestionIds,
+    formSaveEvents: normalizedMeta.formSaveEvents,
+    skippedQuestionIds: effectiveSkippedQuestionIds,
     clusterStates,
   };
 }
@@ -296,4 +359,44 @@ export function createInitialSurveyChatMessages({
       parts: [{ type: "text", text }],
     },
   ];
+}
+
+export function appendFormSaveEvent({
+  afterMessageId,
+  afterMessageIndex,
+  meta,
+  savedQuestionIds,
+}: {
+  afterMessageId: string | null;
+  afterMessageIndex: number | null;
+  meta: unknown;
+  savedQuestionIds: string[];
+}) {
+  const normalizedMeta = normalizeSurveyChatMeta(meta);
+  const dedupedQuestionIds = Array.from(
+    new Set(
+      savedQuestionIds.filter(
+        (questionId): questionId is string => typeof questionId === "string",
+      ),
+    ),
+  );
+
+  if (dedupedQuestionIds.length === 0) {
+    return normalizedMeta;
+  }
+
+  return {
+    ...normalizedMeta,
+    formSaveEvents: [
+      ...normalizedMeta.formSaveEvents,
+      {
+        afterMessageId,
+        afterMessageIndex,
+        id: crypto.randomUUID(),
+        source: "form",
+        savedQuestionIds: dedupedQuestionIds,
+        createdAt: new Date().toISOString(),
+      } satisfies SurveyChatFormSaveEvent,
+    ].slice(-12),
+  } satisfies SurveyChatMeta;
 }

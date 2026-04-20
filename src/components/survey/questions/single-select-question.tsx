@@ -11,10 +11,12 @@ function readUiString(
 }
 
 export function SingleSelectQuestion({
+  disabled = false,
   question,
   value,
   onChange,
 }: {
+  disabled?: boolean;
   question: SurveyQuestion;
   value: SingleSelectAnswerValue;
   onChange: (value: SingleSelectAnswerValue) => void;
@@ -24,6 +26,10 @@ export function SingleSelectQuestion({
       <RadioGroup
         className="grid gap-2.5 sm:grid-cols-2"
         onValueChange={(nextValue) => {
+          if (disabled) {
+            return;
+          }
+
           if (!nextValue) {
             return;
           }
@@ -47,13 +53,17 @@ export function SingleSelectQuestion({
           return (
             <div
               className={[
-                "survey-option cursor-pointer",
+                "survey-option",
+                disabled ? "cursor-default" : "cursor-pointer",
                 selected ? "survey-option-selected" : "",
               ].join(" ")}
               key={option.id}
             >
               <label
-                className="flex cursor-pointer items-start justify-between gap-2.5"
+                className={[
+                  "flex items-start justify-between gap-2.5",
+                  disabled ? "cursor-default" : "cursor-pointer",
+                ].join(" ")}
                 htmlFor={`${question.id}-${option.key}`}
               >
                 <div className="space-y-1">
@@ -66,6 +76,7 @@ export function SingleSelectQuestion({
                 </div>
                 <RadioGroupItem
                   className="mt-1 border-border bg-background text-primary"
+                  disabled={disabled}
                   id={`${question.id}-${option.key}`}
                   value={option.key}
                 />
@@ -80,6 +91,7 @@ export function SingleSelectQuestion({
       ) ? (
         <input
           className="survey-input"
+          disabled={disabled}
           onChange={(event) =>
             onChange({
               choice: value.choice,

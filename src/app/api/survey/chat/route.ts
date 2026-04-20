@@ -70,9 +70,14 @@ function readSessionToken(headers: Headers) {
 function describeQuestion(
   question: SurveyQuestion,
   answer: SerializedAnswer | undefined,
+  skippedQuestionIds: Set<string>,
 ) {
+  const isAnswered =
+    Boolean(answer?.valueText?.trim()) || answer?.valueJson != null;
   const base: Record<string, unknown> = {
     id: question.id,
+    isAnswered,
+    isSkipped: skippedQuestionIds.has(question.id),
     key: question.key,
     prompt: question.prompt,
     helpText: question.helpText ?? undefined,
@@ -108,32 +113,128 @@ function describeQuestion(
   return base;
 }
 
+function formatAnswerForContext(answer: SerializedAnswer | undefined) {
+  if (!answer) {
+    return null;
+  }
+
+  return answer.valueJson ?? answer.valueText ?? null;
+}
+
 function buildSurveyContext(
   survey: SerializedSurvey,
   answers: Record<string, SerializedAnswer>,
   chatMeta: SurveyChatMessageContextMeta,
 ) {
   const playbook = resolveConversationPlaybook(survey);
+  const skippedQuestionIds = new Set(chatMeta.skippedQuestionIds);
+  const answeredQuestionIds = Array.from(
+    new Set(
+      survey.sections.flatMap((section) =>
+        section.questions
+          .filter((question) => {
+            const answer = answers[question.id];
+
+            return (
+              Boolean(answer?.valueText?.trim()) || answer?.valueJson != null
+            );
+          })
+          .map((question) => question.id),
+      ),
+    ),
+  );
+  const knownAnswers = survey.sections.flatMap((section) =>
+    section.questions.flatMap((question) => {
+      const answer = answers[question.id];
+
+      if (!answer) {
+        return [];
+      }
+
+      const currentAnswer = answer.valueJson ?? answer.valueText ?? null;
+
+      if (currentAnswer === null) {
+        return [];
+      }
+
+      return [
+        {
+          id: question.id,
+          key: question.key,
+          prompt: question.prompt,
+          currentAnswer,
+          sectionTitle: section.title,
+        },
+      ];
+    }),
+  );
   const activeCluster = getActiveConversationCluster({
     survey,
     meta: chatMeta,
   });
-  const clusters = playbook.map((cluster) => ({
-    key: cluster.key,
-    title: cluster.title,
-    intent: cluster.intent,
-    opener: cluster.opener,
-    resumePrompt: cluster.resumePrompt,
-    followUps: cluster.followUps,
-    status: chatMeta.clusterStates[cluster.key]?.status ?? "pending",
-    answeredQuestionIds:
-      chatMeta.clusterStates[cluster.key]?.answeredQuestionIds ?? [],
-    unresolvedQuestionIds:
-      chatMeta.clusterStates[cluster.key]?.unresolvedQuestionIds ?? [],
-    questions: cluster.questions.map((entry) => ({
-      ...describeQuestion(entry.question, answers[entry.question.id]),
+  const questionIndex = getSurveyQuestionIndex(survey);
+  const clusters = playbook.map((cluster) => {
+    const unresolvedQuestionIds =
+      chatMeta.clusterStates[cluster.key]?.unresolvedQuestionIds ?? [];
+    const questions = cluster.questions.map((entry) => ({
+      ...describeQuestion(
+        entry.question,
+        answers[entry.question.id],
+        skippedQuestionIds,
+      ),
       sectionTitle: entry.sectionTitle,
-    })),
+    }));
+    const pendingQuestions = cluster.questions
+      .filter((entry) => unresolvedQuestionIds.includes(entry.question.id))
+      .map((entry) => ({
+        ...describeQuestion(
+          entry.question,
+          answers[entry.question.id],
+          skippedQuestionIds,
+        ),
+        sectionTitle: entry.sectionTitle,
+      }));
+
+    return {
+      key: cluster.key,
+      title: cluster.title,
+      intent: cluster.intent,
+      opener: cluster.opener,
+      resumePrompt: cluster.resumePrompt,
+      followUps: cluster.followUps,
+      status: chatMeta.clusterStates[cluster.key]?.status ?? "pending",
+      answeredQuestionIds:
+        chatMeta.clusterStates[cluster.key]?.answeredQuestionIds ?? [],
+      unresolvedQuestionIds,
+      pendingQuestions,
+      questions,
+    };
+  });
+
+  const activeClusterPendingQuestions = activeCluster
+    ? (clusters.find((cluster) => cluster.key === activeCluster.key)
+        ?.pendingQuestions ?? [])
+    : [];
+  const recentFormUpdates = chatMeta.formSaveEvents.slice(-4).map((event) => ({
+    createdAt: event.createdAt,
+    savedQuestionIds: event.savedQuestionIds,
+    questions: event.savedQuestionIds.flatMap((questionId) => {
+      const entry = questionIndex.get(questionId);
+
+      if (!entry) {
+        return [];
+      }
+
+      return [
+        {
+          id: questionId,
+          key: entry.question.key,
+          prompt: entry.question.prompt,
+          currentAnswer: formatAnswerForContext(answers[questionId]),
+          sectionTitle: entry.sectionTitle,
+        },
+      ];
+    }),
   }));
 
   return {
@@ -148,9 +249,14 @@ function buildSurveyContext(
           unresolvedQuestionIds:
             chatMeta.clusterStates[activeCluster.key]?.unresolvedQuestionIds ??
             [],
+          pendingQuestions: activeClusterPendingQuestions,
         }
       : null,
+    answeredQuestionIds,
+    knownAnswers,
     lastCompletedClusterKey: chatMeta.lastCompletedClusterKey,
+    recentFormUpdates,
+    skippedQuestionIds: chatMeta.skippedQuestionIds,
     clusters,
   };
 }
@@ -257,6 +363,12 @@ Reglas estrictas:
 - Usa \`choiceKey\` para single_select y \`choiceKeys\` para multi_select.
 - Si eliges una opción con \`allowsOtherText\`, incluye también \`otherText\` con el detalle del usuario. Si esa pregunta no tiene un fallback de tipo \`other\`, pide una aclaración en vez de adivinar.
 - Después de guardar, haz solo la mejor siguiente pregunta humana para el cluster activo o para el siguiente cluster natural.
+- Si una pregunta tiene \`isAnswered: true\` o un \`currentAnswer\`, trátala como resuelta y no la vuelvas a pedir.
+- Usa primero \`activeCluster.pendingQuestions\` y \`activeCluster.unresolvedQuestionIds\` para elegir la siguiente pregunta.
+- Si el cluster activo ya no tiene pendientes, pasa al siguiente cluster con status \`pending\` o \`in_progress\`.
+- Trata las respuestas guardadas desde el formulario igual que las respuestas dichas en chat: ya son contexto conocido.
+- Si el transcript histórico y el estado estructurado se contradicen, confía en el estado estructurado más reciente.
+- Si 'recentFormUpdates' muestra que la última pregunta del historial ya fue respondida en el formulario, no la repitas; continúa con la siguiente pendiente.
 - No menciones UI, tabs, pickers, botones, herramientas ni JSON.
 - El survey se puede enviar aunque esté parcialmente respondido. Solo llama submit_survey cuando el usuario haya terminado o cuando ya no tenga más que agregar por ahora.`;
 
@@ -396,11 +508,27 @@ Follow-ups preferidos del cluster activo: ${
 ## ESTADO DEL SURVEY
 Título: ${survey.title}
 Response ID: ${bundle.id}
-Preguntas saltadas (IDs): ${
-    chatMeta.skippedQuestionIds.length > 0
-      ? chatMeta.skippedQuestionIds.join(", ")
+Preguntas respondidas (IDs): ${
+    context.answeredQuestionIds.length > 0
+      ? context.answeredQuestionIds.join(", ")
       : "ninguna"
   }
+Respuestas ya registradas (JSON): ${JSON.stringify(context.knownAnswers, null, 2)}
+Actualizaciones recientes desde formulario (más nuevas que el transcript) (JSON): ${JSON.stringify(
+    context.recentFormUpdates,
+    null,
+    2,
+  )}
+Preguntas saltadas (IDs): ${
+    context.skippedQuestionIds.length > 0
+      ? context.skippedQuestionIds.join(", ")
+      : "ninguna"
+  }
+Preguntas pendientes del cluster activo (JSON): ${JSON.stringify(
+    context.activeCluster?.pendingQuestions ?? [],
+    null,
+    2,
+  )}
 
 ## Clusters conversacionales (JSON)
 ${JSON.stringify(context.clusters, null, 2)}

@@ -10,12 +10,13 @@ interface ProgressNavProps {
   canGoNext: boolean;
   currentSectionIndex: number;
   currentSectionId: string;
-  isBusy: boolean;
+  isReadOnly?: boolean;
+  isSubmitting: boolean;
   onBack: () => void;
   onJump: (sectionId: string) => void;
   onNext: () => void;
   onSubmit: () => void;
-  saveLabel: string;
+  saveLabel: string | null;
   sections: Array<{ id: string; title: string }>;
   totalSections: number;
 }
@@ -25,7 +26,8 @@ export function ProgressNav({
   canGoNext,
   currentSectionIndex,
   currentSectionId,
-  isBusy,
+  isReadOnly = false,
+  isSubmitting,
   onBack,
   onJump,
   onNext,
@@ -61,10 +63,12 @@ export function ProgressNav({
           <p className="survey-kicker text-[0.69rem] uppercase tracking-[0.26em] text-muted-foreground">
             Sección {currentSectionIndex + 1} de {totalSections}
           </p>
-          <p className="survey-muted text-sm">{saveLabel}</p>
+          {saveLabel ? (
+            <p className="survey-muted text-sm">{saveLabel}</p>
+          ) : null}
           <Button
             className="rounded-full px-3 py-2 text-[0.68rem] tracking-[0.16em]"
-            disabled={isBusy}
+            disabled={isSubmitting}
             onClick={() => setIsSectionsOpen(true)}
             type="button"
             variant="outline"
@@ -78,7 +82,7 @@ export function ProgressNav({
           <Button
             className="flex-1 rounded-full px-3 py-2 text-[0.68rem] tracking-[0.16em] sm:flex-none"
             variant="secondary"
-            disabled={!canGoBack || isBusy}
+            disabled={!canGoBack || isSubmitting}
             onClick={onBack}
           >
             Atrás
@@ -86,19 +90,21 @@ export function ProgressNav({
 
           <Button
             className="flex-1 rounded-full px-3 py-2 text-[0.68rem] tracking-[0.16em] sm:flex-none"
-            disabled={!canGoNext || isBusy}
+            disabled={!canGoNext || isSubmitting}
             onClick={onNext}
           >
-            {isBusy ? "Guardando..." : "Siguiente"}
+            Siguiente
           </Button>
 
-          <Button
-            className="flex-1 rounded-full px-3 py-2 text-[0.68rem] tracking-[0.16em] sm:flex-none"
-            disabled={isBusy}
-            onClick={onSubmit}
-          >
-            {isBusy ? "Enviando..." : "Enviar ahora"}
-          </Button>
+          {isReadOnly ? null : (
+            <Button
+              className="flex-1 rounded-full px-3 py-2 text-[0.68rem] tracking-[0.16em] sm:flex-none"
+              disabled={isSubmitting}
+              onClick={onSubmit}
+            >
+              {isSubmitting ? "Enviando..." : "Enviar ahora"}
+            </Button>
+          )}
         </div>
       </div>
 

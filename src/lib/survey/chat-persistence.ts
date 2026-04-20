@@ -13,6 +13,7 @@ import type {
 } from "@/types/survey";
 
 import {
+  appendFormSaveEvent,
   buildSurveyChatMeta,
   createInitialSurveyChatMessages,
   normalizeSurveyChatMeta,
@@ -31,6 +32,18 @@ const surveyChatMetaSchema = z.object({
   lastCompletedClusterKey: z.string().nullable().optional(),
   skippedQuestionIds: z.array(z.string().uuid()).optional(),
   clusterStates: z.record(z.string(), surveyChatClusterStateSchema).optional(),
+  formSaveEvents: z
+    .array(
+      z.object({
+        afterMessageId: z.string().nullable().optional(),
+        afterMessageIndex: z.number().int().nonnegative().nullable().optional(),
+        id: z.string(),
+        source: z.literal("form"),
+        savedQuestionIds: z.array(z.string().uuid()),
+        createdAt: z.string(),
+      }),
+    )
+    .optional(),
 });
 
 async function parseMessages(messages: unknown) {
@@ -172,5 +185,39 @@ export async function ensureSurveyChatState({
       meta: syncedMeta,
     }),
     meta: normalizeSurveyChatMeta(syncedMeta),
+  });
+}
+
+export async function appendSurveyFormSaveEvent({
+  responseId,
+  savedQuestionIds,
+}: {
+  responseId: string;
+  savedQuestionIds: string[];
+}) {
+  const existing = await getSurveyChatState(responseId);
+
+  if (!existing || savedQuestionIds.length === 0) {
+    return existing;
+  }
+
+  const latestAssistantMessageIndex = existing.messages.findLastIndex(
+    (message) => message.role === "assistant",
+  );
+  const latestAssistantMessage =
+    latestAssistantMessageIndex >= 0
+      ? existing.messages[latestAssistantMessageIndex]
+      : null;
+
+  return saveSurveyChatState({
+    responseId,
+    messages: existing.messages,
+    meta: appendFormSaveEvent({
+      afterMessageId: latestAssistantMessage?.id ?? null,
+      afterMessageIndex:
+        latestAssistantMessageIndex >= 0 ? latestAssistantMessageIndex : null,
+      meta: existing.meta,
+      savedQuestionIds,
+    }),
   });
 }

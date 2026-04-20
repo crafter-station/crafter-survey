@@ -14,6 +14,10 @@ export function CompletionScreen({
           {description}
         </div>
       ) : null}
+
+      <p className="survey-muted text-sm leading-6">
+        Puedes revisar tus respuestas abajo en modo de solo lectura.
+      </p>
     </div>
   );
 }
