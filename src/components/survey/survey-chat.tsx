@@ -9,7 +9,7 @@ import {
   type UITools,
 } from "ai";
 import { MessageCircleIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 import {
   Conversation,
@@ -23,12 +23,12 @@ import {
   MessageResponse,
 } from "@/components/ai-elements/message";
 import { PromptInput } from "@/components/ai-elements/prompt-input";
-import { cn } from "@/lib/utils";
 import type {
-  SerializedSurvey,
   SerializedSurveyResponse,
   SurveyChatMessage,
 } from "@/types/survey";
+
+import { SurveyShell } from "./survey-shell";
 
 function getMessageStepParts(message: SurveyChatMessage) {
   const steps: UIMessagePart<UIDataTypes, UITools>[][] = [];
@@ -105,49 +105,10 @@ function getStepUpdates(parts: UIMessagePart<UIDataTypes, UITools>[]) {
   return updates;
 }
 
-function countProgress(
-  survey: SerializedSurvey,
-  response: SerializedSurveyResponse | null,
-) {
-  const total = survey.sections.reduce(
-    (sum, section) => sum + section.questions.length,
-    0,
-  );
-
-  if (!response) {
-    return { answered: 0, total };
-  }
-
-  let answered = 0;
-
-  for (const section of survey.sections) {
-    for (const question of section.questions) {
-      const answer = response.answers[question.id];
-
-      if (!answer) {
-        continue;
-      }
-
-      if (answer.valueText?.trim()) {
-        answered += 1;
-        continue;
-      }
-
-      if (answer.valueJson !== null && answer.valueJson !== undefined) {
-        answered += 1;
-      }
-    }
-  }
-
-  return { answered, total };
-}
-
-export function SurveyChat({
-  survey,
+export function useSurveyChat({
   response,
   onConversationUpdated,
 }: {
-  survey: SerializedSurvey;
   response: SerializedSurveyResponse;
   onConversationUpdated?: () => void;
 }) {
@@ -178,7 +139,6 @@ export function SurveyChat({
     setMessages(response.chatState?.messages ?? []);
   }, [response.chatState?.messages, setMessages]);
 
-  const progress = countProgress(survey, response);
   const isBusy = status === "streaming" || status === "submitted";
 
   async function handleSubmit({ text }: { text: string }) {
@@ -187,21 +147,10 @@ export function SurveyChat({
     setInput("");
   }
 
-  return (
-    <div className="flex h-full min-h-0 flex-1 flex-col gap-2">
-      <div className="survey-kicker flex items-center justify-between text-[0.66rem] uppercase tracking-[0.22em] text-muted-foreground">
-        <span>Conversación</span>
-        <span>
-          {progress.answered}/{progress.total} respuestas
-        </span>
-      </div>
-
-      <div
-        className={cn(
-          "flex min-h-0 flex-1 flex-col overflow-hidden rounded-[16px] border border-border bg-[var(--panel)]",
-        )}
-      >
-        <Conversation className="flex-1 min-h-0">
+  return {
+    content: (
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col">
+        <Conversation className="min-h-0 flex-1 bg-transparent">
           {messages.length === 0 ? (
             <ConversationEmptyState
               description="Responde con libertad. Yo voy completando el survey por detrás."
@@ -209,7 +158,7 @@ export function SurveyChat({
               title="Empecemos"
             />
           ) : (
-            <ConversationContent className="gap-4 p-3 sm:p-4">
+            <ConversationContent className="gap-5 pb-8 pt-6 sm:pb-10 sm:pt-8">
               {messages.flatMap((message, messageIndex) => {
                 const steps = getMessageStepParts(message);
 
@@ -246,7 +195,7 @@ export function SurveyChat({
                         className="flex justify-center"
                         key={`${message.id || "message"}:${messageIndex}:${stepIndex}:update:${updateIndex}`}
                       >
-                        <div className="survey-kicker rounded-full border border-border/70 bg-background/40 px-2.5 py-1 text-[0.62rem] tracking-[0.18em] text-muted-foreground uppercase">
+                        <div className="survey-kicker rounded-full border border-border/70 bg-background/80 px-3 py-1 text-[0.62rem] tracking-[0.18em] text-muted-foreground uppercase shadow-sm backdrop-blur-xl">
                           {update}
                         </div>
                       </div>,
@@ -271,26 +220,81 @@ export function SurveyChat({
           )}
           <ConversationScrollButton />
         </Conversation>
-
-        {error ? (
-          <div className="border-t border-border bg-destructive/10 px-3 py-2 text-sm text-[var(--danger-foreground)]">
-            {error.message || "Algo falló. Reintenta en un momento."}
-          </div>
-        ) : null}
-
-        <div className="border-t border-border p-2 sm:p-2.5">
-          <PromptInput
-            className="rounded-[12px] p-1.5"
-            footer={<span>Enter para enviar</span>}
-            onStop={() => stop()}
-            onSubmit={handleSubmit}
-            onValueChange={setInput}
-            placeholder="Escribe tu respuesta..."
-            status={status}
-            value={input}
-          />
-        </div>
       </div>
+    ),
+    footer: (
+      <SurveyChatFooter
+        error={error}
+        input={input}
+        onStop={() => stop()}
+        onSubmit={handleSubmit}
+        onValueChange={setInput}
+        status={status}
+      />
+    ),
+  };
+}
+
+export function SurveyChatFooter({
+  error,
+  input,
+  onStop,
+  onSubmit,
+  onValueChange,
+  status,
+}: {
+  error?: Error | null;
+  input: string;
+  onStop: () => void;
+  onSubmit: ({ text }: { text: string }) => void;
+  onValueChange: (value: string) => void;
+  status: ReturnType<typeof useChat<SurveyChatMessage>>["status"];
+}) {
+  return (
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+      {error ? (
+        <div className="rounded-[18px] border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-[var(--danger-foreground)]">
+          {error.message || "Algo fallo. Reintenta en un momento."}
+        </div>
+      ) : null}
+
+      <PromptInput
+        className="p-3"
+        footer={<span>Enter para enviar</span>}
+        onStop={onStop}
+        onSubmit={onSubmit}
+        onValueChange={onValueChange}
+        placeholder="Escribe tu respuesta..."
+        status={status}
+        value={input}
+      />
     </div>
+  );
+}
+
+export function SurveyChatPane({
+  chrome,
+  response,
+  onConversationUpdated,
+}: {
+  chrome: ReactNode;
+  response: SerializedSurveyResponse;
+  onConversationUpdated?: () => void;
+}) {
+  const chatUi = useSurveyChat({
+    response,
+    onConversationUpdated,
+  });
+
+  return (
+    <SurveyShell
+      chrome={chrome}
+      compact
+      contentClassName="overflow-hidden"
+      contentScrollable={false}
+      footer={chatUi.footer}
+    >
+      {chatUi.content}
+    </SurveyShell>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { MoonIcon, SunIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -46,12 +47,16 @@ export function ThemeToggle() {
   return (
     <Button
       aria-label={`Activar tema ${theme === "dark" ? "claro" : "oscuro"}`}
-      className="min-w-20 uppercase tracking-[0.18em]"
+      className="rounded-full border-border/70 bg-background/70"
       onClick={handleToggle}
-      size="sm"
+      size="icon-sm"
       variant="outline"
     >
-      {theme === "dark" ? "Light" : "Dark"}
+      {theme === "dark" ? (
+        <SunIcon className="size-3.5" />
+      ) : (
+        <MoonIcon className="size-3.5" />
+      )}
     </Button>
   );
 }

@@ -23,7 +23,7 @@ import { type SurveyMode, SurveyModeToggle } from "./mode-toggle";
 import { ProgressNav } from "./progress-nav";
 import { QuestionRenderer } from "./question-renderer";
 import { SectionPanel } from "./section-panel";
-import { SurveyChat } from "./survey-chat";
+import { SurveyChatPane } from "./survey-chat";
 import { SurveyCompactChrome } from "./survey-compact-chrome";
 import { SurveyHeroChrome } from "./survey-hero-chrome";
 import { SurveyShell } from "./survey-shell";
@@ -120,6 +120,7 @@ export function SurveyExperience({
   }
 
   const dirtyQuestionIdsRef = useRef(new Set<string>());
+  const contentScrollRef = useRef<HTMLDivElement | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveStateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveQueueRef = useRef(Promise.resolve(true));
@@ -296,15 +297,25 @@ export function SurveyExperience({
 
   const scrollToSectionTop = useEffectEvent(() => {
     window.setTimeout(() => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      contentScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     }, 80);
   });
 
   const scrollToQuestion = useEffectEvent((questionId: string) => {
     window.setTimeout(() => {
-      document
-        .getElementById(`question-${questionId}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const container = contentScrollRef.current;
+      const element = document.getElementById(`question-${questionId}`);
+
+      if (!container || !element) {
+        return;
+      }
+
+      const containerRect = container.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+      const top =
+        container.scrollTop + elementRect.top - containerRect.top - 20;
+
+      container.scrollTo({ top, behavior: "smooth" });
     }, 80);
   });
 
@@ -643,37 +654,57 @@ export function SurveyExperience({
       ? (currentSectionIndex + 1) / survey.sections.length
       : 0.06;
 
-  return (
-    <SurveyShell
-      chrome={
-        mode === "gate" ? (
+  const compactChrome = (
+    <SurveyCompactChrome
+      actions={
+        mode === "survey" && survey && response ? (
+          <SurveyModeToggle
+            mode={surveyMode}
+            onChange={async (next) => {
+              if (next === surveyMode) return;
+              if (surveyMode === "form") {
+                await flushDirty({ forceTouch: false });
+              }
+              updateSurveyMode(next);
+              await refreshFromServer();
+            }}
+          />
+        ) : undefined
+      }
+    />
+  );
+
+  const formFooter =
+    mode === "survey" && surveyMode === "form" && survey && currentSection ? (
+      <ProgressNav
+        canGoBack={currentSectionIndex > 0}
+        canGoNext={currentSectionIndex < survey.sections.length - 1}
+        currentSectionIndex={currentSectionIndex}
+        currentSectionId={currentSection.id}
+        isBusy={submitPending || saveState === "saving"}
+        onBack={handleBack}
+        onJump={handleSectionJump}
+        onNext={handleNext}
+        onSubmit={handleSubmit}
+        saveLabel={saveLabel}
+        sections={survey.sections.map((section) => ({
+          id: section.id,
+          title: section.title,
+        }))}
+        totalSections={survey.sections.length}
+      />
+    ) : null;
+
+  if (mode === "gate") {
+    return (
+      <SurveyShell
+        chrome={
           <SurveyHeroChrome
             surveyDescription={surveyDescription}
             surveyTitle={gate?.title ?? "Crafter Station Community Survey"}
           />
-        ) : (
-          <SurveyCompactChrome
-            actions={
-              mode === "survey" && survey && response ? (
-                <SurveyModeToggle
-                  mode={surveyMode}
-                  onChange={async (next) => {
-                    if (next === surveyMode) return;
-                    if (surveyMode === "form") {
-                      await flushDirty({ forceTouch: false });
-                    }
-                    updateSurveyMode(next);
-                    await refreshFromServer();
-                  }}
-                />
-              ) : undefined
-            }
-          />
-        )
-      }
-      compact={mode === "survey" || mode === "submitted"}
-    >
-      {mode === "gate" ? (
+        }
+      >
         <div className="space-y-4">
           <div className="space-y-1.5">
             <div className="survey-kicker flex items-center justify-between gap-4 text-[0.69rem] uppercase tracking-[0.26em]">
@@ -705,10 +736,14 @@ export function SurveyExperience({
             onSubmit={handleUnlockSubmit}
           />
         </div>
-      ) : null}
+      </SurveyShell>
+    );
+  }
 
-      {mode === "submitted" ? (
-        <div className="space-y-3">
+  if (mode === "submitted") {
+    return (
+      <SurveyShell compact chrome={compactChrome}>
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-5 sm:px-6 sm:py-7">
           <div className="space-y-1">
             <p className="survey-kicker text-[0.66rem] uppercase tracking-[0.22em] text-muted-foreground">
               Cierre
@@ -721,93 +756,91 @@ export function SurveyExperience({
             description={survey?.completionDescription ?? null}
           />
         </div>
-      ) : null}
+      </SurveyShell>
+    );
+  }
 
-      {isChatActive && survey && response ? (
-        <SurveyChat
-          onConversationUpdated={() => {
-            void refreshFromServer();
-          }}
-          response={response}
-          survey={survey}
-        />
-      ) : null}
+  if (isChatActive && survey && response) {
+    return (
+      <SurveyChatPane
+        chrome={compactChrome}
+        onConversationUpdated={() => {
+          void refreshFromServer();
+        }}
+        response={response}
+      />
+    );
+  }
 
-      {mode === "survey" &&
-      surveyMode === "form" &&
-      survey &&
-      currentSection ? (
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <div className="survey-kicker flex items-center justify-between gap-4 text-[0.69rem] uppercase tracking-[0.26em]">
-              <span>{`Sección ${currentSectionIndex + 1}`}</span>
-              <span>{Math.round(formProgressValue * 100)}%</span>
-            </div>
-            <div className="survey-progress-track h-[2px] overflow-hidden">
-              <div
-                className="survey-progress-fill h-full transition-[width] duration-300 ease-out"
-                style={{ width: `${Math.max(formProgressValue, 0.04) * 100}%` }}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <h2 className="survey-heading max-w-3xl text-2xl leading-tight font-medium tracking-[-0.03em] text-foreground sm:text-3xl">
-              {currentSection.title}
-            </h2>
-            {currentSection.description ? (
-              <p className="survey-body survey-muted max-w-2xl text-base leading-7">
-                {currentSection.description}
-              </p>
-            ) : null}
-          </div>
-
-          <AnimatePresence initial={false} mode="wait">
-            <SectionPanel
-              direction={reducedMotion ? 0 : direction}
-              panelKey={currentSection.id}
-            >
-              {currentSection.questions.map((question) => (
-                <QuestionRenderer
-                  answer={answers[question.id]}
-                  key={question.id}
-                  onChange={(next) => updateAnswer(question.id, next)}
-                  onSingleSelectCommit={() =>
-                    handleSingleSelectCommit(question.id)
-                  }
-                  question={question}
+  if (mode === "survey" && surveyMode === "form" && survey && currentSection) {
+    return (
+      <SurveyShell
+        chrome={compactChrome}
+        compact
+        contentRef={contentScrollRef}
+        footer={formFooter ?? undefined}
+      >
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-5 sm:px-6 sm:py-7">
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <div className="survey-kicker flex items-center justify-between gap-4 text-[0.69rem] uppercase tracking-[0.26em] text-muted-foreground">
+                <span>{`Sección ${currentSectionIndex + 1}`}</span>
+                <span>{Math.round(formProgressValue * 100)}%</span>
+              </div>
+              <div className="survey-progress-track h-[2px] overflow-hidden rounded-full">
+                <div
+                  className="survey-progress-fill h-full transition-[width] duration-300 ease-out"
+                  style={{
+                    width: `${Math.max(formProgressValue, 0.04) * 100}%`,
+                  }}
                 />
-              ))}
+              </div>
+            </div>
 
-              {currentSection.key === "cierre" &&
-              involvementSelections.length > 0 ? (
-                <div className="survey-muted border border-border bg-[var(--panel)] px-4 py-4 text-sm leading-7 sm:px-5">
-                  Si nos dejas tu correo, podemos escribirte directamente sobre:{" "}
-                  {involvementSelections.join(", ")}.
-                </div>
+            <div className="space-y-1">
+              <h2 className="survey-heading max-w-3xl text-2xl leading-tight font-medium tracking-[-0.03em] text-foreground sm:text-3xl">
+                {currentSection.title}
+              </h2>
+              {currentSection.description ? (
+                <p className="survey-body survey-muted max-w-2xl text-sm leading-6 sm:text-base sm:leading-7">
+                  {currentSection.description}
+                </p>
               ) : null}
-            </SectionPanel>
-          </AnimatePresence>
+            </div>
+          </div>
 
-          <ProgressNav
-            canGoBack={currentSectionIndex > 0}
-            canGoNext={currentSectionIndex < survey.sections.length - 1}
-            currentSectionIndex={currentSectionIndex}
-            currentSectionId={currentSection.id}
-            isBusy={submitPending || saveState === "saving"}
-            onBack={handleBack}
-            onJump={handleSectionJump}
-            onNext={handleNext}
-            onSubmit={handleSubmit}
-            saveLabel={saveLabel}
-            sections={survey.sections.map((section) => ({
-              id: section.id,
-              title: section.title,
-            }))}
-            totalSections={survey.sections.length}
-          />
+          <div className="space-y-4 pb-4">
+            <AnimatePresence initial={false} mode="wait">
+              <SectionPanel
+                direction={reducedMotion ? 0 : direction}
+                panelKey={currentSection.id}
+              >
+                {currentSection.questions.map((question) => (
+                  <QuestionRenderer
+                    answer={answers[question.id]}
+                    key={question.id}
+                    onChange={(next) => updateAnswer(question.id, next)}
+                    onSingleSelectCommit={() =>
+                      handleSingleSelectCommit(question.id)
+                    }
+                    question={question}
+                  />
+                ))}
+
+                {currentSection.key === "cierre" &&
+                involvementSelections.length > 0 ? (
+                  <div className="survey-muted rounded-[20px] border border-border/70 bg-background/70 px-4 py-4 text-sm leading-7 sm:px-5">
+                    Si nos dejas tu correo, podemos escribirte directamente
+                    sobre: {involvementSelections.join(", ")}.
+                  </div>
+                ) : null}
+              </SectionPanel>
+            </AnimatePresence>
+          </div>
         </div>
-      ) : null}
-    </SurveyShell>
-  );
+      </SurveyShell>
+    );
+  }
+
+  return null;
 }

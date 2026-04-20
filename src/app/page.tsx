@@ -13,7 +13,7 @@ export default async function Home() {
   });
 
   return (
-    <main className="min-h-screen overflow-hidden">
+    <main className="h-dvh overflow-hidden">
       <SurveyExperience initialData={initialData} />
     </main>
   );
