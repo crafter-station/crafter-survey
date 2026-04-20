@@ -1,3 +1,5 @@
+import type { RefObject } from "react";
+
 import { Card, CardContent } from "@/components/ui/card";
 import type {
   JsonValue,
@@ -64,12 +66,14 @@ function readMultiSelectValue(
 
 export function QuestionRenderer({
   answer,
+  inputRef,
   onChange,
   onSingleSelectCommit,
   question,
   readOnly = false,
 }: {
   answer: SerializedAnswer | undefined;
+  inputRef?: RefObject<HTMLInputElement | HTMLTextAreaElement | null>;
   onChange: (next: {
     valueText: string | null;
     valueJson: JsonValue | null;
@@ -102,6 +106,7 @@ export function QuestionRenderer({
         {question.questionType === "long_text" ? (
           <TextareaQuestion
             disabled={readOnly}
+            inputRef={inputRef}
             onChange={(value) =>
               onChange({ valueText: value, valueJson: null })
             }
@@ -115,6 +120,7 @@ export function QuestionRenderer({
         question.questionType === "phone" ? (
           <TextQuestion
             disabled={readOnly}
+            inputRef={inputRef}
             onChange={(value) =>
               onChange({ valueText: value, valueJson: null })
             }

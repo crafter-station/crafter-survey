@@ -1,4 +1,4 @@
-import type { HTMLAttributes } from "react";
+import type { HTMLAttributes, Ref } from "react";
 
 import { Input } from "@/components/ui/input";
 import type { SurveyQuestion } from "@/types/survey";
@@ -34,11 +34,13 @@ function readInputMode(
 
 export function TextQuestion({
   disabled = false,
+  inputRef,
   question,
   value,
   onChange,
 }: {
   disabled?: boolean;
+  inputRef?: Ref<HTMLInputElement>;
   question: SurveyQuestion;
   value: string;
   onChange: (value: string) => void;
@@ -49,6 +51,7 @@ export function TextQuestion({
       className="survey-input h-auto px-3 py-2.5 md:text-sm"
       disabled={disabled}
       inputMode={readInputMode(question)}
+      ref={inputRef}
       onChange={(event) => onChange(event.target.value)}
       placeholder={question.placeholder ?? ""}
       type={

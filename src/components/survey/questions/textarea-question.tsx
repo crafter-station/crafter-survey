@@ -1,3 +1,5 @@
+import type { Ref } from "react";
+
 import { Textarea } from "@/components/ui/textarea";
 import type { SurveyQuestion } from "@/types/survey";
 
@@ -9,11 +11,13 @@ function getMaxLength(question: SurveyQuestion) {
 
 export function TextareaQuestion({
   disabled = false,
+  inputRef,
   question,
   value,
   onChange,
 }: {
   disabled?: boolean;
+  inputRef?: Ref<HTMLTextAreaElement>;
   question: SurveyQuestion;
   value: string;
   onChange: (value: string) => void;
@@ -28,6 +32,7 @@ export function TextareaQuestion({
         maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
         placeholder={question.placeholder ?? ""}
+        ref={inputRef}
         value={value}
       />
       {maxLength ? (

@@ -75,6 +75,15 @@ function getInitialSectionIndex(
   return index >= 0 ? index : 0;
 }
 
+function isTextEntryQuestion(questionType: string) {
+  return (
+    questionType === "short_text" ||
+    questionType === "email" ||
+    questionType === "phone" ||
+    questionType === "long_text"
+  );
+}
+
 function createOutbox(
   responseId: string,
   currentSectionId: string | null,
@@ -256,6 +265,9 @@ export function SurveyExperience({
   }
 
   const initialClientState = initialClientStateRef.current;
+  const questionInputRefs = useRef(
+    new Map<string, HTMLInputElement | HTMLTextAreaElement | null>(),
+  );
 
   const surveyStateQuery = useQuery({
     gcTime: Infinity,
@@ -731,6 +743,18 @@ export function SurveyExperience({
     }, 80);
   });
 
+  const focusQuestionInput = useEffectEvent((questionId: string) => {
+    window.setTimeout(() => {
+      const input = questionInputRefs.current.get(questionId);
+
+      if (!input || input.disabled) {
+        return;
+      }
+
+      input.focus({ preventScroll: true });
+    }, 180);
+  });
+
   const handleSingleSelectCommit = useEffectEvent((questionId: string) => {
     if (!currentSection) {
       return;
@@ -748,6 +772,10 @@ export function SurveyExperience({
 
     if (nextQuestion) {
       scrollToQuestion(nextQuestion.id);
+
+      if (isTextEntryQuestion(nextQuestion.questionType)) {
+        focusQuestionInput(nextQuestion.id);
+      }
     }
   });
 
@@ -1364,6 +1392,13 @@ export function SurveyExperience({
                 {currentSection.questions.map((question) => (
                   <QuestionRenderer
                     answer={answers[question.id]}
+                    inputRef={
+                      isTextEntryQuestion(question.questionType)
+                        ? (node) => {
+                            questionInputRefs.current.set(question.id, node);
+                          }
+                        : undefined
+                    }
                     key={question.id}
                     onChange={(next) => updateAnswer(question.id, next)}
                     onSingleSelectCommit={() =>
