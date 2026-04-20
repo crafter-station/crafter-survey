@@ -12,6 +12,8 @@ function createValidatedEnv() {
       SURVEY_ACCESS_CODE: z.string().min(1),
       UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
       UPSTASH_REDIS_REST_URL: z.url(),
+      AI_GATEWAY_API_KEY: z.string().min(1).optional(),
+      VERCEL_AI_GATEWAY_API_KEY: z.string().min(1).optional(),
     },
     client: {},
     emptyStringAsUndefined: true,
@@ -22,6 +24,8 @@ function createValidatedEnv() {
       SURVEY_ACCESS_CODE: process.env.SURVEY_ACCESS_CODE,
       UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
       UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
+      AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY,
+      VERCEL_AI_GATEWAY_API_KEY: process.env.VERCEL_AI_GATEWAY_API_KEY,
     },
   });
 }

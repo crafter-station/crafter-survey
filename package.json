@@ -12,10 +12,11 @@
     "db:survey:plan": "node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/db/surveys/cli.ts plan",
     "db:survey:push": "node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/db/surveys/cli.ts push",
     "db:survey:backfill-analytics": "node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/db/surveys/backfill.ts",
-    "db:seed": "node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/db/seed/community-survey.ts",
     "db:studio": "node --env-file=.env ./node_modules/drizzle-kit/bin.cjs studio"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.53",
+    "@ai-sdk/react": "^3.0.170",
     "@base-ui/react": "^1.4.0",
     "@hugeicons/core-free-icons": "^4.1.1",
     "@hugeicons/react": "^1.1.6",
@@ -23,16 +24,20 @@
     "@t3-oss/env-nextjs": "^0.13.11",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.37.0",
+    "ai": "^6.0.168",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "framer-motion": "^12.38.0",
+    "lucide-react": "^1.8.0",
     "next": "16.2.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "shadcn": "^4.3.0",
+    "streamdown": "^2.5.0",
     "tailwind-merge": "^3.5.0",
     "tw-animate-css": "^1.4.0",
+    "use-stick-to-bottom": "^1.1.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {

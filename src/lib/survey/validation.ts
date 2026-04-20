@@ -218,9 +218,18 @@ function sanitizeMultiSelectAnswer(
     );
   }
 
-  const choices = Array.from(new Set(parsed.data.choices)).filter((choice) =>
-    Boolean(getOption(question, choice)),
+  const dedupedChoices = Array.from(new Set(parsed.data.choices));
+  const invalidChoices = dedupedChoices.filter(
+    (choice) => !getOption(question, choice),
   );
+
+  if (invalidChoices.length > 0) {
+    throw new SurveyValidationError(
+      `Invalid option selected for ${question.prompt}.`,
+    );
+  }
+
+  const choices = dedupedChoices;
 
   const maxSelections = getMaxSelections(question);
 

@@ -255,6 +255,21 @@ export const surveyAnswers = pgTable(
   ],
 );
 
+export const surveyResponseChats = pgTable("survey_response_chats", {
+  responseId: uuid("response_id")
+    .primaryKey()
+    .references(() => surveyResponses.id, { onDelete: "cascade" }),
+  schemaVersion: integer("schema_version").notNull().default(1),
+  messagesJson: jsonb("messages_json").$type<unknown>().notNull(),
+  metaJson: jsonb("meta_json").$type<Record<string, unknown> | null>(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 export const surveysRelations = relations(surveys, ({ many }) => ({
   versions: many(surveyVersions),
 }));
@@ -328,6 +343,20 @@ export const surveyResponsesRelations = relations(
       references: [surveySections.id],
     }),
     answers: many(surveyAnswers),
+    chatState: one(surveyResponseChats, {
+      fields: [surveyResponses.id],
+      references: [surveyResponseChats.responseId],
+    }),
+  }),
+);
+
+export const surveyResponseChatsRelations = relations(
+  surveyResponseChats,
+  ({ one }) => ({
+    response: one(surveyResponses, {
+      fields: [surveyResponseChats.responseId],
+      references: [surveyResponses.id],
+    }),
   }),
 );
 
@@ -350,3 +379,4 @@ export type SurveyOption = typeof surveyQuestionOptions.$inferSelect;
 export type AnonymousSession = typeof anonymousSessions.$inferSelect;
 export type SurveyResponse = typeof surveyResponses.$inferSelect;
 export type SurveyAnswer = typeof surveyAnswers.$inferSelect;
+export type SurveyResponseChat = typeof surveyResponseChats.$inferSelect;

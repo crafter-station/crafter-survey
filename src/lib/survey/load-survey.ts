@@ -13,7 +13,7 @@ import { getEnvValidationMessage, hasRequiredSurveyEnv } from "@/env";
 import { createFingerprintHash } from "@/lib/fingerprint";
 import { hashSessionToken } from "@/lib/session";
 import type { SurveyPageData } from "@/types/survey";
-
+import { ensureSurveyChatState } from "./chat-persistence";
 import {
   buildGateMeta,
   serializeSurvey,
@@ -61,6 +61,7 @@ export async function getResponseBundle(responseId: string) {
         with: surveyVersionWithSections,
       },
       answers: true,
+      chatState: true,
     },
   });
 }
@@ -185,11 +186,18 @@ export async function loadSurveyPageData({
     const response = await getResponseBundle(responseId);
 
     if (response) {
+      const serializedSurvey = serializeSurvey(response.surveyVersion);
+      const chatState = await ensureSurveyChatState({
+        responseId: response.id,
+        survey: serializedSurvey,
+        answers: serializeSurveyResponse(response).answers,
+      });
+
       return {
         mode: response.status === "submitted" ? "submitted" : "survey",
         gate: buildGateMeta(response.surveyVersion),
-        survey: serializeSurvey(response.surveyVersion),
-        response: serializeSurveyResponse(response),
+        survey: serializedSurvey,
+        response: serializeSurveyResponse(response, chatState),
         message: null,
       };
     }

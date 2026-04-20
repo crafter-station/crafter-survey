@@ -18,6 +18,7 @@ import {
   SESSION_COOKIE_NAME,
 } from "@/lib/session";
 import { verifyAccessCode } from "@/lib/survey/access-code";
+import { ensureSurveyChatState } from "@/lib/survey/chat-persistence";
 import {
   findLatestResponseReferenceByFingerprintHash,
   findLatestResponseReferenceForSession,
@@ -165,9 +166,16 @@ export async function POST(request: Request) {
       return jsonError("We could not load the survey after unlocking it.", 500);
     }
 
+    const serializedSurvey = serializeSurvey(responseBundle.surveyVersion);
+    const chatState = await ensureSurveyChatState({
+      responseId: responseBundle.id,
+      survey: serializedSurvey,
+      answers: serializeSurveyResponse(responseBundle).answers,
+    });
+
     const response = NextResponse.json({
-      survey: serializeSurvey(responseBundle.surveyVersion),
-      response: serializeSurveyResponse(responseBundle),
+      survey: serializedSurvey,
+      response: serializeSurveyResponse(responseBundle, chatState),
     });
 
     response.cookies.set(

@@ -2,6 +2,7 @@ import type {
   JsonValue,
   SerializedAnswer,
   SerializedSurvey,
+  SerializedSurveyChatState,
   SerializedSurveyResponse,
   SurveyGateMeta,
   SurveyQuestionType,
@@ -121,6 +122,7 @@ export function serializeSurvey(bundle: SurveyVersionBundle): SerializedSurvey {
 
 export function serializeSurveyResponse(
   response: ResponseBundle,
+  chatState: SerializedSurveyChatState | null = null,
 ): SerializedSurveyResponse {
   const answers = Object.fromEntries(
     response.answers.map((answer) => {
@@ -145,5 +147,6 @@ export function serializeSurveyResponse(
     lastSavedAt: response.lastSavedAt.toISOString(),
     submittedAt: response.submittedAt?.toISOString() ?? null,
     answers,
+    chatState,
   };
 }

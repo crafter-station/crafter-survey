@@ -22,6 +22,7 @@ function question(
   return {
     ...definition,
     analyticsKey,
+    required: false,
     options: definition.options?.map((option) => ({
       ...option,
       analyticsKey: option.analyticsKey ?? `${analyticsKey}.${option.key}`,

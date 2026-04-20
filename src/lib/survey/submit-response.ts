@@ -5,11 +5,8 @@ import { surveyResponses } from "@/db/schema";
 
 import { getResponseBundle } from "./load-survey";
 import { saveSurveyProgress } from "./save-progress";
-import { serializeSurvey, serializeSurveyResponse } from "./serialize";
-import {
-  getMissingRequiredQuestionIds,
-  type PreparedAnswerChange,
-} from "./validation";
+import { serializeSurveyResponse } from "./serialize";
+import type { PreparedAnswerChange } from "./validation";
 
 export async function submitSurveyResponse({
   changes,
@@ -32,20 +29,6 @@ export async function submitSurveyResponse({
 
   if (!refreshed) {
     throw new Error("Survey response not found after save.");
-  }
-
-  const serializedSurvey = serializeSurvey(refreshed.surveyVersion);
-  const serializedResponse = serializeSurveyResponse(refreshed);
-  const missingRequiredQuestionIds = getMissingRequiredQuestionIds(
-    serializedSurvey,
-    serializedResponse.answers,
-  );
-
-  if (missingRequiredQuestionIds.length > 0) {
-    return {
-      ok: false as const,
-      missingRequiredQuestionIds,
-    };
   }
 
   const now = new Date();
