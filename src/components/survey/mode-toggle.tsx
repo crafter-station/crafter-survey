@@ -15,7 +15,7 @@ export function SurveyModeToggle({
 }) {
   return (
     <div
-      className="survey-surface inline-flex items-center rounded-full border border-border bg-[var(--panel)] p-1 text-xs"
+      className="survey-surface inline-flex items-center rounded-full border border-border bg-[var(--panel)] p-0.5 text-xs"
       role="tablist"
     >
       <ToggleButton
@@ -51,7 +51,7 @@ function ToggleButton({
     <button
       aria-selected={active}
       className={cn(
-        "survey-kicker inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 uppercase tracking-[0.2em] transition-colors",
+        "survey-kicker inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.66rem] uppercase tracking-[0.16em] transition-colors sm:px-3",
         active
           ? "bg-foreground text-background"
           : "text-muted-foreground hover:text-foreground",
@@ -61,7 +61,10 @@ function ToggleButton({
       type="button"
     >
       {children}
-      {label}
+      <span className="sm:hidden">
+        {label === "Formulario" ? "Form" : label}
+      </span>
+      <span className="hidden sm:inline">{label}</span>
     </button>
   );
 }

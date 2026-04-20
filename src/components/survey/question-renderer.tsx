@@ -1,4 +1,3 @@
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type {
   JsonValue,
@@ -65,13 +64,11 @@ function readMultiSelectValue(
 
 export function QuestionRenderer({
   answer,
-  invalid,
   onChange,
   onSingleSelectCommit,
   question,
 }: {
   answer: SerializedAnswer | undefined;
-  invalid: boolean;
   onChange: (next: {
     valueText: string | null;
     valueJson: JsonValue | null;
@@ -79,38 +76,23 @@ export function QuestionRenderer({
   onSingleSelectCommit?: () => void;
   question: SurveyQuestion;
 }) {
-  const containerClass = [
-    "space-y-3 px-0 py-0",
-    invalid ? "survey-error p-3" : "bg-transparent",
-  ].join(" ");
-
   return (
-    <Card className={containerClass} id={`question-${question.id}`} size="sm">
+    <Card
+      className="space-y-3 bg-transparent px-0 py-0"
+      id={`question-${question.id}`}
+      size="sm"
+    >
       <CardContent className="space-y-3 px-0">
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-3">
             <h3 className="survey-heading text-lg leading-7 font-medium tracking-[-0.02em] text-foreground">
               {question.prompt}
             </h3>
-            {question.required ? (
-              <Badge
-                className="survey-pill survey-kicker px-2 py-0.5 text-[0.66rem] uppercase tracking-[0.24em]"
-                variant="outline"
-              >
-                Obligatoria
-              </Badge>
-            ) : null}
           </div>
 
           {question.helpText ? (
             <p className="survey-body survey-muted max-w-2xl text-sm leading-6">
               {question.helpText}
-            </p>
-          ) : null}
-
-          {invalid ? (
-            <p className="survey-body text-sm leading-6 text-[var(--danger-foreground)]">
-              Este campo es obligatorio para continuar.
             </p>
           ) : null}
         </div>

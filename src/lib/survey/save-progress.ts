@@ -78,3 +78,20 @@ export async function saveSurveyProgress({
 
   return now;
 }
+
+export async function updateSurveyCurrentSection({
+  currentSectionId,
+  responseId,
+}: {
+  currentSectionId: string | null;
+  responseId: string;
+}) {
+  const db = getDb();
+
+  await db
+    .update(surveyResponses)
+    .set({
+      currentSectionId,
+    })
+    .where(eq(surveyResponses.id, responseId));
+}

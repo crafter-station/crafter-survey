@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getEnvValidationMessage, hasRequiredSurveyEnv } from "@/env";
 import { getSessionCookieOptions, SESSION_COOKIE_NAME } from "@/lib/session";
+import { ensureSurveyChatState } from "@/lib/survey/chat-persistence";
 import { authorizeResponseAccess } from "@/lib/survey/request-access";
 import {
   serializeSurvey,
@@ -52,7 +53,12 @@ export async function GET(request: Request) {
   }
 
   const survey = serializeSurvey(authorization.response.surveyVersion);
-  const serialized = serializeSurveyResponse(authorization.response);
+  const chatState = await ensureSurveyChatState({
+    responseId: authorization.response.id,
+    survey,
+    answers: serializeSurveyResponse(authorization.response).answers,
+  });
+  const serialized = serializeSurveyResponse(authorization.response, chatState);
 
   const payload = NextResponse.json({
     survey,

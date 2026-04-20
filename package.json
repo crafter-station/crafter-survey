@@ -12,11 +12,10 @@
     "db:survey:plan": "node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/db/surveys/cli.ts plan",
     "db:survey:push": "node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/db/surveys/cli.ts push",
     "db:survey:backfill-analytics": "node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/db/surveys/backfill.ts",
-    "db:seed": "node --env-file=.env ./node_modules/tsx/dist/cli.mjs src/db/seed/community-survey.ts",
     "db:studio": "node --env-file=.env ./node_modules/drizzle-kit/bin.cjs studio"
   },
   "dependencies": {
-    "@ai-sdk/gateway": "^3.0.104",
+    "@ai-sdk/openai": "^3.0.53",
     "@ai-sdk/react": "^3.0.170",
     "@base-ui/react": "^1.4.0",
     "@hugeicons/core-free-icons": "^4.1.1",

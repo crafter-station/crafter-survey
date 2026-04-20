@@ -1,3 +1,5 @@
+import type { UIDataTypes, UIMessage, UITools } from "ai";
+
 export type JsonValue =
   | string
   | number
@@ -159,6 +161,34 @@ export interface SerializedSurveyResponse {
   lastSavedAt: string | null;
   submittedAt: string | null;
   answers: Record<string, SerializedAnswer>;
+  chatState: SerializedSurveyChatState | null;
+}
+
+export type SurveyChatMessage = UIMessage<unknown, UIDataTypes, UITools>;
+
+export type SurveyChatClusterStatus =
+  | "pending"
+  | "in_progress"
+  | "done"
+  | "skipped";
+
+export interface SurveyChatClusterState {
+  status: SurveyChatClusterStatus;
+  answeredQuestionIds: string[];
+  unresolvedQuestionIds: string[];
+}
+
+export interface SurveyChatMeta extends Record<string, unknown> {
+  activeClusterKey: string | null;
+  lastCompletedClusterKey: string | null;
+  clusterStates: Record<string, SurveyChatClusterState>;
+  skippedQuestionIds: string[];
+}
+
+export interface SerializedSurveyChatState {
+  messages: SurveyChatMessage[];
+  meta: SurveyChatMeta;
+  updatedAt: string | null;
 }
 
 export interface SurveyPageData {

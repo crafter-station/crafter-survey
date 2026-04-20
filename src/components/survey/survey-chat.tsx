@@ -3,12 +3,13 @@
 import { useChat } from "@ai-sdk/react";
 import {
   DefaultChatTransport,
+  isToolUIPart,
   type UIDataTypes,
-  type UIMessage,
+  type UIMessagePart,
   type UITools,
 } from "ai";
-import { MessageCircleIcon, SparklesIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { MessageCircleIcon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   Conversation,
@@ -26,22 +27,82 @@ import { cn } from "@/lib/utils";
 import type {
   SerializedSurvey,
   SerializedSurveyResponse,
-  SurveyQuestion,
+  SurveyChatMessage,
 } from "@/types/survey";
 
-import { ChatQuestionPicker } from "./chat-question-picker";
+function getMessageStepParts(message: SurveyChatMessage) {
+  const steps: UIMessagePart<UIDataTypes, UITools>[][] = [];
+  let currentStep: UIMessagePart<UIDataTypes, UITools>[] = [];
 
-type ChatUIMessage = UIMessage<unknown, UIDataTypes, UITools>;
+  for (const part of message.parts) {
+    if (part.type === "step-start") {
+      if (currentStep.length > 0) {
+        steps.push(currentStep);
+      }
+      currentStep = [];
+      continue;
+    }
 
-function extractText(message: ChatUIMessage) {
-  return message.parts
+    currentStep.push(part);
+  }
+
+  if (currentStep.length > 0) {
+    steps.push(currentStep);
+  }
+
+  return steps.length > 0 ? steps : [message.parts];
+}
+
+function getStepText(parts: UIMessagePart<UIDataTypes, UITools>[]) {
+  return parts
     .filter(
-      (part): part is { type: "text"; text: string } =>
-        part.type === "text" &&
-        typeof (part as { text?: unknown }).text === "string",
+      (
+        part,
+      ): part is Extract<
+        UIMessagePart<UIDataTypes, UITools>,
+        { type: "text" }
+      > => part.type === "text" && typeof part.text === "string",
     )
     .map((part) => part.text)
-    .join("");
+    .join("")
+    .trim();
+}
+
+function getStepUpdates(parts: UIMessagePart<UIDataTypes, UITools>[]) {
+  const updates: string[] = [];
+
+  for (const part of parts) {
+    if (!isToolUIPart(part) || part.state !== "output-available") {
+      continue;
+    }
+
+    if (part.type === "tool-commit_survey_turn") {
+      const output = part.output as {
+        savedQuestionIds?: unknown;
+      } | null;
+      const savedCount = Array.isArray(output?.savedQuestionIds)
+        ? output.savedQuestionIds.length
+        : 0;
+
+      if (savedCount > 0) {
+        updates.push(
+          savedCount === 1
+            ? "1 respuesta registrada"
+            : `${savedCount} respuestas registradas`,
+        );
+      }
+    }
+
+    if (part.type === "tool-submit_survey") {
+      const output = part.output as { ok?: unknown } | null;
+
+      if (output?.ok === true) {
+        updates.push("Encuesta enviada");
+      }
+    }
+  }
+
+  return updates;
 }
 
 function countProgress(
@@ -52,145 +113,72 @@ function countProgress(
     (sum, section) => sum + section.questions.length,
     0,
   );
-  if (!response) return { answered: 0, total };
+
+  if (!response) {
+    return { answered: 0, total };
+  }
 
   let answered = 0;
+
   for (const section of survey.sections) {
     for (const question of section.questions) {
       const answer = response.answers[question.id];
-      if (!answer) continue;
+
+      if (!answer) {
+        continue;
+      }
+
       if (answer.valueText?.trim()) {
         answered += 1;
         continue;
       }
-      if (answer.valueJson) {
+
+      if (answer.valueJson !== null && answer.valueJson !== undefined) {
         answered += 1;
       }
     }
   }
+
   return { answered, total };
 }
 
 export function SurveyChat({
   survey,
   response,
-  onCompleted,
-  onAnswerSaved,
+  onConversationUpdated,
 }: {
   survey: SerializedSurvey;
   response: SerializedSurveyResponse;
-  onCompleted?: () => void;
-  onAnswerSaved?: () => void;
+  onConversationUpdated?: () => void;
 }) {
   const transport = useMemo(
     () =>
-      new DefaultChatTransport({
+      new DefaultChatTransport<SurveyChatMessage>({
         api: "/api/survey/chat",
         body: { responseId: response.id },
       }),
     [response.id],
   );
-
   const [input, setInput] = useState("");
-  const completedRef = useRef(false);
 
-  const { messages, sendMessage, status, error, stop } = useChat({
-    transport,
-    onError: (err) => {
-      console.error("Survey chat error", err);
-    },
-  });
+  const { messages, sendMessage, setMessages, status, error, stop } =
+    useChat<SurveyChatMessage>({
+      id: response.id,
+      messages: response.chatState?.messages ?? [],
+      transport,
+      onError: (err) => {
+        console.error("Survey chat error", err);
+      },
+      onFinish: () => {
+        onConversationUpdated?.();
+      },
+    });
+
+  useEffect(() => {
+    setMessages(response.chatState?.messages ?? []);
+  }, [response.chatState?.messages, setMessages]);
 
   const progress = countProgress(survey, response);
-  const lastSavedToolCallIdRef = useRef<string | null>(null);
-
-  const questionIndex = useMemo(() => {
-    const map = new Map<string, SurveyQuestion>();
-    for (const section of survey.sections) {
-      for (const question of section.questions) {
-        map.set(question.id, question);
-      }
-    }
-    return map;
-  }, [survey]);
-
-  const activeQuestion = useMemo<SurveyQuestion | null>(() => {
-    const list = messages as ChatUIMessage[];
-    for (let index = list.length - 1; index >= 0; index -= 1) {
-      const message = list[index];
-      if (message.role === "user") {
-        return null;
-      }
-      if (message.role !== "assistant") continue;
-      for (
-        let partIndex = message.parts.length - 1;
-        partIndex >= 0;
-        partIndex -= 1
-      ) {
-        const part = message.parts[partIndex] as unknown as {
-          type?: string;
-          state?: string;
-          output?: { ok?: boolean; questionId?: string };
-        };
-        if (
-          part?.type === "tool-ask_question" &&
-          part.state === "output-available" &&
-          part.output?.ok &&
-          part.output.questionId
-        ) {
-          return questionIndex.get(part.output.questionId) ?? null;
-        }
-      }
-    }
-    return null;
-  }, [messages, questionIndex]);
-
-  useEffect(() => {
-    if (completedRef.current) return;
-    for (const message of messages as ChatUIMessage[]) {
-      for (const part of message.parts) {
-        if (
-          typeof part !== "object" ||
-          !part ||
-          !("type" in part) ||
-          !("state" in part) ||
-          part.state !== "output-available"
-        ) {
-          continue;
-        }
-
-        if (part.type === "tool-submit_survey") {
-          const output = (part as { output?: { ok?: boolean } }).output;
-          if (output?.ok) {
-            completedRef.current = true;
-            onCompleted?.();
-          }
-        }
-
-        if (part.type === "tool-save_answer") {
-          const toolCallId = (part as { toolCallId?: string }).toolCallId;
-          const output = (part as { output?: { ok?: boolean } }).output;
-          if (
-            output?.ok &&
-            toolCallId &&
-            toolCallId !== lastSavedToolCallIdRef.current
-          ) {
-            lastSavedToolCallIdRef.current = toolCallId;
-            onAnswerSaved?.();
-          }
-        }
-      }
-    }
-  }, [messages, onCompleted, onAnswerSaved]);
-
-  useEffect(() => {
-    if (messages.length === 0 && status === "ready") {
-      sendMessage({
-        text: "Hola, estoy listo para empezar la encuesta.",
-      });
-    }
-  }, [messages.length, status, sendMessage]);
-
   const isBusy = status === "streaming" || status === "submitted";
 
   async function handleSubmit({ text }: { text: string }) {
@@ -200,12 +188,9 @@ export function SurveyChat({
   }
 
   return (
-    <div className="flex min-h-[520px] flex-col gap-3">
-      <div className="survey-kicker flex items-center justify-between text-[0.7rem] uppercase tracking-[0.24em]">
-        <span className="inline-flex items-center gap-2">
-          <SparklesIcon className="size-3.5" />
-          Modo conversacional
-        </span>
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-2">
+      <div className="survey-kicker flex items-center justify-between text-[0.66rem] uppercase tracking-[0.22em] text-muted-foreground">
+        <span>Conversación</span>
         <span>
           {progress.answered}/{progress.total} respuestas
         </span>
@@ -213,32 +198,63 @@ export function SurveyChat({
 
       <div
         className={cn(
-          "survey-surface flex h-[540px] flex-col overflow-hidden rounded-[18px] border border-border bg-[var(--panel)]",
+          "flex min-h-0 flex-1 flex-col overflow-hidden rounded-[16px] border border-border bg-[var(--panel)]",
         )}
       >
         <Conversation className="flex-1 min-h-0">
           {messages.length === 0 ? (
             <ConversationEmptyState
-              description="Voy a hacerte preguntas breves. Responde como si habláramos."
-              icon={<MessageCircleIcon className="size-8 opacity-50" />}
+              description="Responde con libertad. Yo voy completando el survey por detrás."
+              icon={<MessageCircleIcon className="size-7 opacity-50" />}
               title="Empecemos"
             />
           ) : (
-            <ConversationContent>
-              {(messages as ChatUIMessage[]).map((message) => {
-                const text = extractText(message);
-                if (!text) return null;
-                return (
-                  <Message from={message.role} key={message.id}>
-                    <MessageContent>
-                      {message.role === "assistant" ? (
-                        <MessageResponse>{text}</MessageResponse>
-                      ) : (
-                        <span className="whitespace-pre-wrap">{text}</span>
-                      )}
-                    </MessageContent>
-                  </Message>
-                );
+            <ConversationContent className="gap-4 p-3 sm:p-4">
+              {messages.flatMap((message, messageIndex) => {
+                const steps = getMessageStepParts(message);
+
+                return steps.flatMap((step, stepIndex) => {
+                  const text = getStepText(step);
+                  const updates = getStepUpdates(step);
+
+                  if (!text && updates.length === 0) {
+                    return [];
+                  }
+
+                  const items = [];
+
+                  if (text) {
+                    items.push(
+                      <Message
+                        from={message.role}
+                        key={`${message.id || "message"}:${messageIndex}:${stepIndex}:${message.role}`}
+                      >
+                        <MessageContent>
+                          {message.role === "assistant" ? (
+                            <MessageResponse>{text}</MessageResponse>
+                          ) : (
+                            <span className="whitespace-pre-wrap">{text}</span>
+                          )}
+                        </MessageContent>
+                      </Message>,
+                    );
+                  }
+
+                  updates.forEach((update, updateIndex) => {
+                    items.push(
+                      <div
+                        className="flex justify-center"
+                        key={`${message.id || "message"}:${messageIndex}:${stepIndex}:update:${updateIndex}`}
+                      >
+                        <div className="survey-kicker rounded-full border border-border/70 bg-background/40 px-2.5 py-1 text-[0.62rem] tracking-[0.18em] text-muted-foreground uppercase">
+                          {update}
+                        </div>
+                      </div>,
+                    );
+                  });
+
+                  return items;
+                });
               })}
               {status === "submitted" ? (
                 <Message from="assistant">
@@ -257,39 +273,19 @@ export function SurveyChat({
         </Conversation>
 
         {error ? (
-          <div className="border-t border-border bg-destructive/10 px-4 py-2 text-sm text-[var(--danger-foreground)]">
+          <div className="border-t border-border bg-destructive/10 px-3 py-2 text-sm text-[var(--danger-foreground)]">
             {error.message || "Algo falló. Reintenta en un momento."}
           </div>
         ) : null}
 
-        {activeQuestion ? (
-          <div className="border-t border-border bg-[var(--panel)] p-3">
-            <ChatQuestionPicker
-              disabled={isBusy}
-              key={activeQuestion.id}
-              onSkip={() => {
-                if (isBusy) return;
-                void sendMessage({ text: "Prefiero saltar esta pregunta." });
-              }}
-              onSubmit={(value) => {
-                if (isBusy) return;
-                void sendMessage({ text: value });
-              }}
-              question={activeQuestion}
-            />
-          </div>
-        ) : null}
-
-        <div className="border-t border-border p-3">
+        <div className="border-t border-border p-2 sm:p-2.5">
           <PromptInput
+            className="rounded-[12px] p-1.5"
+            footer={<span>Enter para enviar</span>}
             onStop={() => stop()}
             onSubmit={handleSubmit}
             onValueChange={setInput}
-            placeholder={
-              activeQuestion
-                ? "O escribe tu respuesta..."
-                : "Escribe tu respuesta..."
-            }
+            placeholder="Escribe tu respuesta..."
             status={status}
             value={input}
           />

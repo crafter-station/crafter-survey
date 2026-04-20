@@ -99,16 +99,6 @@ export async function POST(request: Request) {
       changes,
     });
 
-    if (!result.ok) {
-      return jsonError(
-        "Please complete the required questions before submitting.",
-        400,
-        {
-          missingRequiredQuestionIds: result.missingRequiredQuestionIds,
-        },
-      );
-    }
-
     const response = NextResponse.json({
       response: result.response,
     });
