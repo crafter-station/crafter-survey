@@ -474,7 +474,8 @@ export const communitySurveyDefinition: SurveyDefinition = {
 				question("community.contact.name", {
 					key: "name",
 					prompt: "Nombre (opcional)",
-					helpText: "Si quieres que te contactemos de forma más personal.",
+					helpText:
+						"Déjalo solo si quieres participar en el sorteo de 5 premios de 20 USD en Cursor.",
 					questionType: "short_text",
 					placeholder: "Tu nombre",
 					ui: { autoComplete: "name" },
@@ -483,7 +484,7 @@ export const communitySurveyDefinition: SurveyDefinition = {
 					key: "email",
 					prompt: "Correo (opcional)",
 					helpText:
-						"Si nos lo dejas, podemos escribirte personalmente sobre las formas en que te gustaría involucrarte.",
+						"Déjalo si quieres que podamos contactarte en caso ganes uno de los 5 premios de 20 USD en Cursor que sortearemos entre quienes completen esta encuesta.",
 					questionType: "email",
 					placeholder: "tu@correo.com",
 					ui: { autoComplete: "email", inputMode: "email" },
@@ -491,6 +492,8 @@ export const communitySurveyDefinition: SurveyDefinition = {
 				question("community.contact.phone", {
 					key: "phone",
 					prompt: "Teléfono (opcional)",
+					helpText:
+						"También puedes dejar tu número si prefieres que te contactemos por ahí en caso ganes el sorteo.",
 					questionType: "phone",
 					placeholder: "+51 999 999 999",
 					ui: { autoComplete: "tel", inputMode: "tel" },
