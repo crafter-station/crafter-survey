@@ -41,6 +41,34 @@ export function MultiSelectQuestion({
         {question.options.map((option) => {
           const selected = value.choices.includes(option.key);
 
+          const toggleOption = () => {
+            if (disabled) {
+              return;
+            }
+
+            if (selected) {
+              onChange({
+                choices: value.choices.filter((choice) => choice !== option.key),
+                ...(option.meta?.allowsText
+                  ? { otherText: "" }
+                  : value.otherText
+                    ? { otherText: value.otherText }
+                    : {}),
+              });
+
+              return;
+            }
+
+            if (maxSelections && value.choices.length >= maxSelections) {
+              return;
+            }
+
+            onChange({
+              choices: [...value.choices, option.key],
+              ...(value.otherText ? { otherText: value.otherText } : {}),
+            });
+          };
+
           return (
             <div
               className={[
@@ -48,6 +76,7 @@ export function MultiSelectQuestion({
                 disabled ? "cursor-default" : "cursor-pointer",
                 selected ? "survey-option-selected" : "",
               ].join(" ")}
+              onClick={toggleOption}
               key={option.id}
             >
               <label
@@ -70,41 +99,8 @@ export function MultiSelectQuestion({
                   className="mt-1 rounded-none border-border bg-background text-primary"
                   disabled={disabled}
                   id={`${question.id}-${option.key}`}
-                  onCheckedChange={() => {
-                    if (disabled) {
-                      return;
-                    }
-
-                    if (selected) {
-                      onChange({
-                        choices: value.choices.filter(
-                          (choice) => choice !== option.key,
-                        ),
-                        ...(option.meta?.allowsText
-                          ? { otherText: "" }
-                          : value.otherText
-                            ? { otherText: value.otherText }
-                            : {}),
-                      });
-
-                      return;
-                    }
-
-                    if (
-                      maxSelections &&
-                      value.choices.length >= maxSelections &&
-                      !selected
-                    ) {
-                      return;
-                    }
-
-                    onChange({
-                      choices: [...value.choices, option.key],
-                      ...(value.otherText
-                        ? { otherText: value.otherText }
-                        : {}),
-                    });
-                  }}
+                  onCheckedChange={() => toggleOption()}
+                  onClick={(event) => event.stopPropagation()}
                 />
               </label>
             </div>

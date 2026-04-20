@@ -57,6 +57,18 @@ export function SingleSelectQuestion({
                 disabled ? "cursor-default" : "cursor-pointer",
                 selected ? "survey-option-selected" : "",
               ].join(" ")}
+              onClick={() => {
+                if (disabled || selected) {
+                  return;
+                }
+
+                onChange({
+                  choice: option.key,
+                  ...(option.meta?.allowsText
+                    ? { otherText: value.otherText ?? "" }
+                    : {}),
+                });
+              }}
               key={option.id}
             >
               <label
@@ -78,6 +90,7 @@ export function SingleSelectQuestion({
                   className="mt-1 border-border bg-background text-primary"
                   disabled={disabled}
                   id={`${question.id}-${option.key}`}
+                  onClick={(event) => event.stopPropagation()}
                   value={option.key}
                 />
               </label>
