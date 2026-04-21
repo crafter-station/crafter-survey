@@ -1,4 +1,5 @@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Combobox } from "@/components/ui/combobox";
 import type { SingleSelectAnswerValue, SurveyQuestion } from "@/types/survey";
 
 function readUiString(
@@ -21,6 +22,62 @@ export function SingleSelectQuestion({
   value: SingleSelectAnswerValue;
   onChange: (value: SingleSelectAnswerValue) => void;
 }) {
+  const useCombobox = question.ui?.variant === "combobox";
+
+  // Render combobox variant
+  if (useCombobox) {
+    const placeholderText = question.key === "country"
+      ? "Busca tu país..."
+      : "Selecciona una opción...";
+
+    return (
+      <div className="space-y-2.5">
+        <Combobox
+          disabled={disabled}
+          onChange={(nextValue) => {
+            const option = question.options.find(
+              (item) => item.key === nextValue,
+            );
+
+            onChange({
+              choice: nextValue,
+              ...(option?.meta?.allowsText
+                ? { otherText: value.otherText ?? "" }
+                : {}),
+            });
+          }}
+          options={question.options.map((opt) => ({
+            value: opt.key,
+            label: opt.label,
+          }))}
+          placeholder={placeholderText}
+          value={value.choice ?? null}
+        />
+
+        {question.options.some(
+          (option) => option.key === value.choice && option.meta?.allowsText,
+        ) ? (
+          <input
+            className="survey-input"
+            disabled={disabled}
+            onChange={(event) =>
+              onChange({
+                choice: value.choice,
+                otherText: event.target.value,
+              })
+            }
+            placeholder={
+              readUiString(question, "otherInputPlaceholder") ?? "Cuéntanos más"
+            }
+            type="text"
+            value={value.otherText ?? ""}
+          />
+        ) : null}
+      </div>
+    );
+  }
+
+  // Render default radio button variant
   return (
     <div className="space-y-2.5">
       <RadioGroup

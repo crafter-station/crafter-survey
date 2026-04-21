@@ -35,6 +35,7 @@ export interface SurveyQuestionValidation {
 }
 
 export interface SurveyQuestionUi {
+  variant?: string;
   otherInputLabel?: string;
   otherInputPlaceholder?: string;
   autoComplete?: string;
