@@ -1411,9 +1411,9 @@ export function SurveyExperience({
                 {currentSection.key === "cierre" &&
                 involvementSelections.length > 0 ? (
                   <div className="survey-muted rounded-[20px] border border-border/70 bg-background/70 px-4 py-4 text-sm leading-7 sm:px-5">
-                    Si nos dejas tu correo o tu numero, podemos contactarte si
-                    ganas uno de los 5 premios de 20 USD en Cursor que vamos a
-                    sortear entre quienes completen esta encuesta.
+                    Tus respuestas son anonimas. Solo dejan de serlo si nos
+                    compartes tu correo o tu numero para que podamos
+                    contactarte.
                   </div>
                 ) : null}
               </SectionPanel>
