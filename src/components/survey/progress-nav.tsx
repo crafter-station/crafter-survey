@@ -249,6 +249,7 @@ export function ProgressNav({
                 className="rounded-full px-4 py-2.5 font-semibold"
                 disabled={isSubmitting}
                 onClick={() => {
+                  setIsSubmitConfirmOpen(false);
                   onSubmit();
                 }}
                 type="button"
@@ -294,6 +295,7 @@ export function ProgressNav({
                 className="rounded-full px-4 py-2.5 font-semibold"
                 disabled={isSubmitting}
                 onClick={() => {
+                  setIsSubmitConfirmOpen(false);
                   onSubmit();
                 }}
               >
