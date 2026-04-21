@@ -12,6 +12,7 @@ function createValidatedEnv() {
       SURVEY_ACCESS_CODE: z.string().min(1),
       UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
       UPSTASH_REDIS_REST_URL: z.url(),
+      ADMIN_ACCESS_CODE: z.string().min(1).optional(),
       AI_GATEWAY_API_KEY: z.string().min(1).optional(),
       VERCEL_AI_GATEWAY_API_KEY: z.string().min(1).optional(),
     },
@@ -24,6 +25,7 @@ function createValidatedEnv() {
       SURVEY_ACCESS_CODE: process.env.SURVEY_ACCESS_CODE,
       UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
       UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
+      ADMIN_ACCESS_CODE: process.env.ADMIN_ACCESS_CODE,
       AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY,
       VERCEL_AI_GATEWAY_API_KEY: process.env.VERCEL_AI_GATEWAY_API_KEY,
     },
@@ -68,4 +70,8 @@ export function getEnvValidationMessage() {
 
     return "Invalid environment configuration.";
   }
+}
+
+export function getAdminAccessCode() {
+  return env.ADMIN_ACCESS_CODE ?? null;
 }
