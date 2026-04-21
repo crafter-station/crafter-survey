@@ -76,9 +76,6 @@ export function ProgressNav({
               <p className="survey-kicker text-[0.69rem] uppercase tracking-[0.26em] text-muted-foreground">
                 Sección {currentSectionIndex + 1} de {totalSections}
               </p>
-              <p className="survey-kicker ml-auto text-[0.69rem] uppercase tracking-[0.26em] text-muted-foreground">
-                {answeredQuestions} de {totalQuestions}
-              </p>
             </div>
             {saveLabel ? (
               <p className="survey-muted text-sm">{saveLabel}</p>

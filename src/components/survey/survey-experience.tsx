@@ -30,7 +30,6 @@ import { CompletionScreen } from "./completion-screen";
 import { type SurveyMode, SurveyModeToggle } from "./mode-toggle";
 import { ProgressNav } from "./progress-nav";
 import { QuestionRenderer } from "./question-renderer";
-import { RaffleTransition } from "./raffle-transition";
 import { SectionPanel } from "./section-panel";
 import { SurveyChatPane } from "./survey-chat";
 import { SurveyCompactChrome } from "./survey-compact-chrome";
@@ -295,7 +294,6 @@ export function SurveyExperience({
   const [unlockCode, setUnlockCode] = useState("");
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const [direction, setDirection] = useState(1);
-  const [showRaffleTransition, setShowRaffleTransition] = useState(false);
   const [surveyMode, setSurveyMode] = useState<SurveyMode>("chat");
 
   useEffect(() => {
@@ -1000,13 +998,6 @@ export function SurveyExperience({
       return;
     }
 
-    // Check if we're entering the raffle section - show transition instead
-    if (targetSection.key === "raffle" && !showRaffleTransition) {
-      setShowRaffleTransition(true);
-      scrollToSectionTop();
-      return;
-    }
-
     if (mode === "survey") {
       persistOutbox({
         ...(outboxRef.current?.responseId === response.id
@@ -1080,57 +1071,6 @@ export function SurveyExperience({
       setCurrentSectionIndex(nextIndex);
     });
     scrollToSectionTop();
-  }
-
-  async function handleContinueToRaffle() {
-    if (!survey || !response) {
-      return;
-    }
-
-    const raffleIndex = survey.sections.findIndex(
-      (section) => section.key === "raffle",
-    );
-
-    if (raffleIndex < 0) {
-      return;
-    }
-
-    const targetSection = survey.sections[raffleIndex];
-
-    if (mode === "survey") {
-      persistOutbox({
-        ...(outboxRef.current?.responseId === response.id
-          ? outboxRef.current
-          : createOutbox(response.id, targetSection.id)),
-        currentSectionId: targetSection.id,
-        touchSection: true,
-        retryCount: 0,
-      });
-      setSurveyPageData((current) =>
-        current.response
-          ? {
-              ...current,
-              response: {
-                ...current.response,
-                currentSectionId: targetSection.id,
-              },
-            }
-          : current,
-      );
-      void flushDirty({ forceTouch: true, nextSectionId: targetSection.id });
-    }
-
-    setShowRaffleTransition(false);
-    setDirection(1);
-    startTransition(() => {
-      setCurrentSectionIndex(raffleIndex);
-    });
-    scrollToSectionTop();
-  }
-
-  async function handleSubmitFromTransition() {
-    setShowRaffleTransition(false);
-    await handleSubmit();
   }
 
   async function handleSubmit() {
@@ -1242,7 +1182,7 @@ export function SurveyExperience({
       ? (gate?.description ?? null)
       : mode === "submitted"
         ? "Tus respuestas quedaron guardadas. Si dejaste tus datos, te escribimos pronto."
-        : "Anónima, privada y con guardado automático en cada etapa.";
+        : "La encuesta es completamente anónima.";
 
   const isChatActive = mode === "survey" && surveyMode === "chat";
   const formProgressValue =
@@ -1445,16 +1385,9 @@ export function SurveyExperience({
         chrome={compactChrome}
         compact
         contentRef={contentScrollRef}
-        footer={showRaffleTransition ? undefined : formFooter ?? undefined}
+        footer={formFooter ?? undefined}
       >
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-5 sm:px-6 sm:py-7">
-          {showRaffleTransition ? (
-            <RaffleTransition
-              isSubmitting={submitPending}
-              onContinue={handleContinueToRaffle}
-              onSubmit={handleSubmitFromTransition}
-            />
-          ) : (
             <>
               <div className="space-y-3">
                 <div className="space-y-1">
@@ -1494,7 +1427,7 @@ export function SurveyExperience({
                   />
                 ))}
 
-                {currentSection.key === "raffle" ? (
+                {currentSection.key === "cierre" ? (
                   <div className="survey-muted rounded-[20px] border border-border/70 bg-background/70 px-4 py-4 text-sm leading-7 sm:px-5">
                     Tus respuestas son anónimas. Solo dejan de serlo si nos
                     compartes tu correo o tu número para que podamos
@@ -1505,7 +1438,6 @@ export function SurveyExperience({
             </AnimatePresence>
           </div>
             </>
-          )}
         </div>
       </SurveyShell>
     );
