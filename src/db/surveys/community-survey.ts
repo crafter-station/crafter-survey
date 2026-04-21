@@ -34,10 +34,10 @@ export const communitySurveyDefinition: SurveyDefinition = {
 	slug: "crafter-station-community-survey",
 	title: "Somos 600 shippers. Ayúdanos a construir lo que sigue.",
 	description:
-		"En un año pasamos de comunidad pequeña a 600 personas construyendo en LatAm. Ayúdanos a decidir qué sigue.\n\n3 minutos. Anónima. Sorteo de $100 USD en Cursor al final.\n\nThe Crafter Station team",
+		"En un año pasamos de comunidad pequeña a 600 personas construyendo en LatAm. Ayúdanos a decidir qué sigue.\n\n2 minutos. Anónima.\n\nThe Crafter Station team",
 	completionTitle: "Gracias. En serio.",
 	completionDescription:
-		"En 2 semanas publicamos un resumen de lo que escuchamos y qué vamos a hacer al respecto.\n\nSi dejaste tu correo, te escribimos esta semana.\n\nThe Crafter Station team",
+		"En 2 semanas publicamos un resumen de lo que escuchamos y qué vamos a hacer al respecto.\n\nThe Crafter Station team",
 	sections: [
 		// CORE SECTION 1: Quién eres
 		{
@@ -112,6 +112,8 @@ export const communitySurveyDefinition: SurveyDefinition = {
 					required: true,
 					ui: {
 						variant: "chips",
+						showAdditionalTextInput: true,
+						additionalTextPlaceholder: "Cuéntanos más",
 					},
 					options: [
 						{ key: "cs_engineering", label: "CS / Ingeniería" },
@@ -120,13 +122,6 @@ export const communitySurveyDefinition: SurveyDefinition = {
 						{ key: "career_switch", label: "Otra carrera" },
 						{ key: "studying", label: "Estudiando ahora" },
 					],
-				}),
-				question("community.background_detail", {
-					key: "background_detail",
-					prompt: "Cuéntanos más sobre tu background (opcional)",
-					questionType: "short_text",
-					placeholder: "Detalles adicionales sobre tu formación...",
-					validation: { maxLength: 100 },
 				}),
 				question("community.seniority", {
 					key: "seniority",
@@ -175,6 +170,8 @@ export const communitySurveyDefinition: SurveyDefinition = {
 					required: true,
 					ui: {
 						variant: "chips",
+						showAdditionalTextInput: true,
+						additionalTextPlaceholder: "Cuéntanos más",
 					},
 					options: [
 						{ key: "learn", label: "Aprender" },
@@ -184,13 +181,6 @@ export const communitySurveyDefinition: SurveyDefinition = {
 						{ key: "vibe", label: "Vibe" },
 						{ key: "mentorship", label: "Mentorship" },
 					],
-				}),
-				question("community.why_crafter_detail", {
-					key: "why_crafter_detail",
-					prompt: "Cuéntanos más (opcional)",
-					questionType: "short_text",
-					placeholder: "Elabora sobre por qué estás en la comunidad...",
-					validation: { maxLength: 150 },
 				}),
 			],
 		},
@@ -317,104 +307,5 @@ export const communitySurveyDefinition: SurveyDefinition = {
 			],
 		},
 
-		// RAFFLE SECTION (optional)
-		{
-			key: "raffle",
-			title: "Participa en el sorteo",
-			description:
-				"Ayúdanos a planear mejor los próximos meses y participa en el sorteo de $100 USD en Cursor. Sortearemos cuando lleguemos a 100 respuestas.",
-			questions: [
-				question("community.most_valuable", {
-					key: "most_valuable",
-					prompt:
-						"¿Qué ha sido lo más valioso para ti hasta ahora en Crafter Station?",
-					helpText:
-						"Lo que sea: un evento, un contacto, un proyecto, algo que aprendiste, una idea que te voló la cabeza. Sé concreto.",
-					questionType: "long_text",
-					placeholder: "Cuéntanos qué fue lo más valioso",
-					validation: { maxLength: 280 },
-				}),
-				question("community.involvement", {
-					key: "involvement",
-					prompt: "¿Cómo te gustaría involucrarte en los próximos 6 meses?",
-					helpText: "Selecciona todos los que apliquen.",
-					questionType: "multi_select",
-					options: [
-						{ key: "attend_only", label: "Solo asistir" },
-						{
-							key: "build_with_others",
-							label:
-								"Construir / shippear con otros (grupos de proyecto, buildathons)",
-						},
-						{
-							key: "give_talk",
-							label: "Dar una charla o workshop sobre algo en lo que soy bueno",
-						},
-						{
-							key: "organize_city",
-							label: "Co-organizar un evento en mi ciudad",
-						},
-						{ key: "mentor", label: "Mentorear a gente más junior" },
-						{
-							key: "open_source",
-							label: "Contribuir a un proyecto open source de Crafter Station",
-						},
-						{
-							key: "community_ops",
-							label: "Ayudar con diseño / growth / contenido de la comunidad",
-						},
-						{ key: "sponsors", label: "Ayudar a conseguir sponsors" },
-						{ key: "none_now", label: "Ninguna de las anteriores por ahora" },
-					],
-				}),
-				question("community.missing_from_crafter", {
-					key: "missing_from_crafter",
-					prompt:
-						"¿Qué te gustaría que Crafter Station hiciera que hoy no hacemos?",
-					questionType: "long_text",
-					placeholder: "Tu idea o sugerencia",
-					validation: { maxLength: 280 },
-				}),
-				question("community.communication_frequency", {
-					key: "communication_frequency",
-					prompt: "¿Cada cuánto quieres saber de nosotros?",
-					questionType: "single_select",
-				ui: {
-					variant: "combobox",
-				},					options: [
-						{ key: "weekly", label: "Semanal" },
-						{ key: "biweekly", label: "Cada 2 semanas" },
-						{ key: "monthly", label: "Mensual" },
-						{ key: "big_only", label: "Solo para cosas grandes" },
-						{ key: "least_possible", label: "Lo menos posible" },
-					],
-				}),
-				question("community.contact.name", {
-					key: "name",
-					prompt: "Nombre (opcional)",
-					helpText: "Para contactarte si ganas el sorteo.",
-					questionType: "short_text",
-					placeholder: "Tu nombre",
-					ui: { autoComplete: "name" },
-				}),
-				question("community.contact.email", {
-					key: "email",
-					prompt: "Correo",
-					helpText: "Requerido para participar en el sorteo.",
-					questionType: "email",
-					required: true,
-					placeholder: "tu@correo.com",
-					ui: { autoComplete: "email", inputMode: "email" },
-				}),
-				question("community.contact.phone", {
-					key: "phone",
-					prompt: "Teléfono (opcional)",
-					helpText: "También puedes dejar tu número.",
-					questionType: "phone",
-					placeholder: "+51 999 999 999",
-					ui: { autoComplete: "tel", inputMode: "tel" },
-				}),
-			],
-		},
 	],
 };

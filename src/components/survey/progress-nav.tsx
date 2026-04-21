@@ -72,11 +72,11 @@ export function ProgressNav({
         </div>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-2 flex-1">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
               <p className="survey-kicker text-[0.69rem] uppercase tracking-[0.26em] text-muted-foreground">
                 Sección {currentSectionIndex + 1} de {totalSections}
               </p>
-              <p className="survey-kicker text-[0.69rem] uppercase tracking-[0.26em] text-muted-foreground">
+              <p className="survey-kicker ml-auto text-[0.69rem] uppercase tracking-[0.26em] text-muted-foreground">
                 {answeredQuestions} de {totalQuestions}
               </p>
             </div>

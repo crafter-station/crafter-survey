@@ -131,10 +131,11 @@ export function MultiSelectQuestion({
         })}
       </div>
 
-      {question.options.some(
-        (option) =>
-          value.choices.includes(option.key) && option.meta?.allowsText,
-      ) ? (
+      {(question.ui?.showAdditionalTextInput ||
+        question.options.some(
+          (option) =>
+            value.choices.includes(option.key) && option.meta?.allowsText,
+        )) ? (
         <input
           className="survey-input"
           disabled={disabled}
@@ -145,7 +146,9 @@ export function MultiSelectQuestion({
             })
           }
           placeholder={
-            readUiString(question, "otherInputPlaceholder") ?? "Cuéntanos más"
+            readUiString(question, "additionalTextPlaceholder") ??
+            readUiString(question, "otherInputPlaceholder") ??
+            "Cuéntanos más"
           }
           type="text"
           value={value.otherText ?? ""}

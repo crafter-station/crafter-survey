@@ -296,14 +296,16 @@ export function SurveyExperience({
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const [direction, setDirection] = useState(1);
   const [showRaffleTransition, setShowRaffleTransition] = useState(false);
-  const [surveyMode, setSurveyMode] = useState<SurveyMode>(() => {
-    if (typeof window === "undefined") {
-      return "chat";
-    }
+  const [surveyMode, setSurveyMode] = useState<SurveyMode>("chat");
 
-    const stored = window.localStorage.getItem(MODE_STORAGE_KEY);
-    return stored === "chat" || stored === "form" ? stored : "chat";
-  });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = window.localStorage.getItem(MODE_STORAGE_KEY);
+      if (stored === "chat" || stored === "form") {
+        setSurveyMode(stored);
+      }
+    }
+  }, []);
 
   function updateSurveyMode(nextMode: SurveyMode) {
     setSurveyMode(nextMode);

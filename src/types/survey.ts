@@ -38,6 +38,8 @@ export interface SurveyQuestionUi {
   variant?: string;
   otherInputLabel?: string;
   otherInputPlaceholder?: string;
+  showAdditionalTextInput?: boolean;
+  additionalTextPlaceholder?: string;
   autoComplete?: string;
   inputMode?: string;
 }
