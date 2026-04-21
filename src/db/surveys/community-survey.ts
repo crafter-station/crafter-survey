@@ -113,7 +113,6 @@ export const communitySurveyDefinition: SurveyDefinition = {
 					required: true,
 					ui: {
 						variant: "chips",
-						showAdditionalTextInput: true,
 						additionalTextPlaceholder: "Cuéntanos más",
 					},
 					options: [
@@ -130,7 +129,11 @@ export const communitySurveyDefinition: SurveyDefinition = {
 						{ key: "research", label: "Investigación" },
 						{ key: "bootcamp", label: "Bootcamp" },
 						{ key: "self_taught", label: "Self-taught" },
-						{ key: "career_switch", label: "Otra carrera" },
+						{
+							key: "career_switch",
+							label: "Otra carrera",
+							meta: { allowsText: true },
+						},
 						{ key: "studying", label: "Estudiando ahora" },
 					],
 				}),
@@ -221,7 +224,6 @@ export const communitySurveyDefinition: SurveyDefinition = {
 					required: true,
 					ui: {
 						variant: "chips",
-						showAdditionalTextInput: true,
 						additionalTextPlaceholder: "Cuéntanos más",
 					},
 					options: [
@@ -229,7 +231,11 @@ export const communitySurveyDefinition: SurveyDefinition = {
 						{ key: "build", label: "Construir" },
 						{ key: "networking", label: "Networking" },
 						{ key: "job", label: "Trabajo" },
-						{ key: "vibe", label: "Vibe" },
+						{
+							key: "vibe",
+							label: "Vibe",
+							meta: { allowsText: true },
+						},
 						{ key: "mentorship", label: "Mentorship" },
 					],
 				}),

@@ -78,7 +78,7 @@ export function QuestionRenderer({
     valueText: string | null;
     valueJson: JsonValue | null;
   }) => void;
-  onSingleSelectCommit?: () => void;
+  onSingleSelectCommit?: (value: SingleSelectAnswerValue) => void;
   question: SurveyQuestion;
   readOnly?: boolean;
 }) {
@@ -145,7 +145,7 @@ export function QuestionRenderer({
                 valueJson: value as unknown as JsonValue,
               });
 
-              onSingleSelectCommit?.();
+              onSingleSelectCommit?.(value);
             }}
             question={question}
             value={readSingleSelectValue(answer)}

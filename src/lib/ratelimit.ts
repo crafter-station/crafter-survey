@@ -27,7 +27,7 @@ const RATE_LIMIT_CONFIG = {
     message: "You are saving too quickly. Please wait a moment and try again.",
   },
   submit: {
-    limiter: Ratelimit.slidingWindow(5, "10 m"),
+    limiter: Ratelimit.slidingWindow(30, "10 m"),
     message: "Too many submit attempts. Please try again soon.",
   },
 } satisfies Record<

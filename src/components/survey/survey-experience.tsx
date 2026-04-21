@@ -296,6 +296,7 @@ export function SurveyExperience({
   const [direction, setDirection] = useState(1);
   const [surveyMode, setSurveyMode] = useState<SurveyMode>("chat");
   const [showCompletionConfetti, setShowCompletionConfetti] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -527,6 +528,7 @@ export function SurveyExperience({
     const hydrated = hydrateClientData(nextData);
 
     clearRetryTimer();
+    setSubmitError(null);
     setSurveyPageData(hydrated.pageData);
     setAnswers(hydrated.mergedAnswers);
     setCurrentSectionIndex(
@@ -760,8 +762,25 @@ export function SurveyExperience({
     }, 180);
   });
 
-  const handleSingleSelectCommit = useEffectEvent((questionId: string) => {
+  const handleSingleSelectCommit = useEffectEvent(
+    (questionId: string, value: { choice: string | null; otherText?: string }) => {
     if (!currentSection) {
+      return;
+    }
+
+    const question = currentSection.questions.find(
+      (candidate) => candidate.id === questionId,
+    );
+
+    if (!question || !value.choice) {
+      return;
+    }
+
+    const selectedOption = question.options.find(
+      (option) => option.key === value.choice,
+    );
+
+    if (selectedOption?.meta?.allowsText && !value.otherText?.trim()) {
       return;
     }
 
@@ -782,7 +801,8 @@ export function SurveyExperience({
         focusQuestionInput(nextQuestion.id);
       }
     }
-  });
+    },
+  );
 
   const sendKeepaliveSave = useEffectEvent(() => {
     if (
@@ -1081,6 +1101,7 @@ export function SurveyExperience({
 
     try {
       clearRetryTimer();
+      setSubmitError(null);
 
       const pendingAnswers = Object.values(
         outboxRef.current?.responseId === response.id
@@ -1101,7 +1122,12 @@ export function SurveyExperience({
         response: submittedResponse,
       });
       setShowCompletionConfetti(true);
-    } catch {
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "No pudimos enviar tu encuesta. Reintentaremos automáticamente.",
+      );
       scheduleRetry(0);
     }
   }
@@ -1343,6 +1369,11 @@ export function SurveyExperience({
                     {currentSection.description}
                   </p>
                 ) : null}
+                {submitError ? (
+                  <p className="text-sm leading-6 text-destructive sm:text-base">
+                    {submitError}
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>
@@ -1391,56 +1422,59 @@ export function SurveyExperience({
         footer={formFooter ?? undefined}
       >
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-5 sm:px-6 sm:py-7">
-          <>
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <h2 className="survey-heading max-w-3xl text-2xl leading-tight font-medium tracking-[-0.03em] text-foreground sm:text-3xl">
-                  {currentSection.title}
-                </h2>
-                {currentSection.description ? (
-                  <p className="survey-body survey-muted max-w-2xl text-sm leading-6 sm:text-base sm:leading-7">
-                    {currentSection.description}
-                  </p>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <h2 className="survey-heading max-w-3xl text-2xl leading-tight font-medium tracking-[-0.03em] text-foreground sm:text-3xl">
+                {currentSection.title}
+              </h2>
+              {currentSection.description ? (
+                <p className="survey-body survey-muted max-w-2xl text-sm leading-6 sm:text-base sm:leading-7">
+                  {currentSection.description}
+                </p>
+              ) : null}
+              {submitError ? (
+                <p className="text-sm leading-6 text-destructive sm:text-base">
+                  {submitError}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="space-y-4 pb-4">
+            <AnimatePresence initial={false} mode="wait">
+              <SectionPanel
+                direction={reducedMotion ? 0 : direction}
+                panelKey={currentSection.id}
+              >
+                {currentSection.questions.map((question) => (
+                  <QuestionRenderer
+                    answer={answers[question.id]}
+                    inputRef={
+                      isTextEntryQuestion(question.questionType)
+                        ? (node) => {
+                            questionInputRefs.current.set(question.id, node);
+                          }
+                        : undefined
+                    }
+                    key={question.id}
+                    onChange={(next) => updateAnswer(question.id, next)}
+                    onSingleSelectCommit={(value) =>
+                      handleSingleSelectCommit(question.id, value)
+                    }
+                    question={question}
+                  />
+                ))}
+
+                {currentSection.key === "cierre" ? (
+                  <div className="survey-muted rounded-[20px] border border-border/70 bg-background/70 px-4 py-4 text-sm leading-7 sm:px-5">
+                    Tus respuestas son anónimas. Solo dejan de serlo si nos
+                    compartes tu correo o tu número para que podamos
+                    contactarte.
+                  </div>
                 ) : null}
-              </div>
-            </div>
-
-            <div className="space-y-4 pb-4">
-              <AnimatePresence initial={false} mode="wait">
-                <SectionPanel
-                  direction={reducedMotion ? 0 : direction}
-                  panelKey={currentSection.id}
-                >
-                  {currentSection.questions.map((question) => (
-                    <QuestionRenderer
-                      answer={answers[question.id]}
-                      inputRef={
-                        isTextEntryQuestion(question.questionType)
-                          ? (node) => {
-                              questionInputRefs.current.set(question.id, node);
-                            }
-                          : undefined
-                      }
-                      key={question.id}
-                      onChange={(next) => updateAnswer(question.id, next)}
-                      onSingleSelectCommit={() =>
-                        handleSingleSelectCommit(question.id)
-                      }
-                      question={question}
-                    />
-                  ))}
-
-                  {currentSection.key === "cierre" ? (
-                    <div className="survey-muted rounded-[20px] border border-border/70 bg-background/70 px-4 py-4 text-sm leading-7 sm:px-5">
-                      Tus respuestas son anónimas. Solo dejan de serlo si nos
-                      compartes tu correo o tu número para que podamos
-                      contactarte.
-                    </div>
-                  ) : null}
-                </SectionPanel>
-              </AnimatePresence>
-            </div>
-          </>
+              </SectionPanel>
+            </AnimatePresence>
+          </div>
         </div>
       </SurveyShell>
     );

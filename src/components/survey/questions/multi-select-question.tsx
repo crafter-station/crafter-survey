@@ -29,6 +29,9 @@ export function MultiSelectQuestion({
 }) {
   const maxSelections = getMaxSelections(question);
   const useCompactLayout = question.ui?.variant === "chips";
+  const allowsSelectedText = question.options.some(
+    (option) => value.choices.includes(option.key) && option.meta?.allowsText,
+  );
 
   return (
     <div className="space-y-2.5">
@@ -131,11 +134,7 @@ export function MultiSelectQuestion({
         })}
       </div>
 
-      {(question.ui?.showAdditionalTextInput ||
-        question.options.some(
-          (option) =>
-            value.choices.includes(option.key) && option.meta?.allowsText,
-        )) ? (
+      {allowsSelectedText ? (
         <input
           className="survey-input"
           disabled={disabled}

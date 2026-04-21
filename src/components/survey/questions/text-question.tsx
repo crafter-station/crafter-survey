@@ -45,12 +45,15 @@ export function TextQuestion({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const maxLength = question.validation?.maxLength;
+
   return (
     <Input
       autoComplete={readUiString(question, "autoComplete")}
       className="survey-input h-auto px-3 py-2.5 md:text-sm"
       disabled={disabled}
       inputMode={readInputMode(question)}
+      maxLength={typeof maxLength === "number" ? maxLength : undefined}
       ref={inputRef}
       onChange={(event) => onChange(event.target.value)}
       placeholder={question.placeholder ?? ""}

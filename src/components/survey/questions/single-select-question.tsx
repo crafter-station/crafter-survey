@@ -1,5 +1,5 @@
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Combobox } from "@/components/ui/combobox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { SingleSelectAnswerValue, SurveyQuestion } from "@/types/survey";
 
 function readUiString(
@@ -26,9 +26,10 @@ export function SingleSelectQuestion({
 
   // Render combobox variant
   if (useCombobox) {
-    const placeholderText = question.key === "country"
-      ? "Busca tu país..."
-      : "Selecciona una opción...";
+    const placeholderText =
+      question.key === "country"
+        ? "Busca tu país..."
+        : "Selecciona una opción...";
 
     return (
       <div className="space-y-2.5">
