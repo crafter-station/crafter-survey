@@ -132,37 +132,16 @@ const COMMUNITY_SURVEY_PLAYBOOK: ConversationPlaybookClusterDefinition[] = [
     ],
   },
   {
-    key: "contribution",
-    title: "Contribución",
-    intent:
-      "Entender cómo le gustaría involucrarse y qué siente que falta en Crafter Station.",
-    questionKeys: ["involvement", "missing_from_crafter"],
-    completionQuestionKeys: ["involvement", "missing_from_crafter"],
-    opener:
-      "¿Cómo te gustaría involucrarte en los próximos meses, y qué sientes que todavía nos falta hacer?",
-    resumePrompt:
-      "Cuéntame cómo te gustaría involucrarte y qué te gustaría ver más de nuestro lado.",
-    followUps: [
-      "Puede ser asistir, construir con otros, mentorear, organizar o algo que hoy ni hacemos.",
-    ],
-  },
-  {
     key: "closing",
     title: "Cierre",
     intent:
       "Cerrar con preferencias de contacto y cualquier detalle final que la persona quiera compartir.",
-    questionKeys: [
-      "communication_frequency",
-      "name",
-      "email",
-      "phone",
-      "final_note",
-    ],
-    completionQuestionKeys: ["communication_frequency"],
+    questionKeys: ["name", "email", "phone", "final_note"],
+    completionQuestionKeys: [],
     opener:
-      "Y para cerrar: ¿cada cuánto te gustaría saber de nosotros? Si quieres, también puedes dejarme tu nombre, correo o teléfono y cualquier detalle final.",
+      "Y para cerrar: si quieres, puedes dejarme tu nombre, correo o teléfono, además de cualquier detalle final que quieras compartir.",
     resumePrompt:
-      "Ya casi cerramos: dime cada cuánto quieres saber de nosotros y, si te nace, déjame tus datos o un último comentario.",
+      "Ya casi cerramos: si te nace, déjame tus datos o un último comentario.",
     followUps: ["Los datos de contacto son totalmente opcionales."],
   },
 ];

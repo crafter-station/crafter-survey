@@ -404,73 +404,11 @@ export const communitySurveyDefinition: SurveyDefinition = {
 			],
 		},
 		{
-			key: "contribucion",
-			title: "Contribución",
-			description:
-				"Nos importa saber cómo te gustaría involucrarte en los próximos meses.",
-			questions: [
-				question("community.involvement", {
-					key: "involvement",
-					prompt: "¿Cómo te gustaría involucrarte en los próximos 6 meses?",
-					questionType: "multi_select",
-					required: true,
-					options: [
-						{ key: "attend_only", label: "Solo asistir" },
-						{
-							key: "build_with_others",
-							label:
-								"Construir / shippear con otros (grupos de proyecto, buildathons)",
-						},
-						{
-							key: "give_talk",
-							label: "Dar una charla o workshop sobre algo en lo que soy bueno",
-						},
-						{
-							key: "organize_city",
-							label: "Co-organizar un evento en mi ciudad",
-						},
-						{ key: "mentor", label: "Mentorear a gente más junior" },
-						{
-							key: "open_source",
-							label: "Contribuir a un proyecto open source de Crafter Station",
-						},
-						{
-							key: "community_ops",
-							label: "Ayudar con diseño / growth / contenido de la comunidad",
-						},
-						{ key: "sponsors", label: "Ayudar a conseguir sponsors" },
-						{ key: "none_now", label: "Ninguna de las anteriores por ahora" },
-					],
-				}),
-				question("community.missing_from_crafter", {
-					key: "missing_from_crafter",
-					prompt:
-						"¿Qué te gustaría que Crafter Station hiciera que hoy no hacemos?",
-					questionType: "long_text",
-					placeholder: "Tu idea o sugerencia",
-					validation: { maxLength: 280 },
-				}),
-			],
-		},
-		{
 			key: "cierre",
 			title: "Cierre",
 			description:
 				"Última parte. Si quieres que te contactemos directamente, puedes dejar tus datos aquí.",
 			questions: [
-				question("community.communication_frequency", {
-					key: "communication_frequency",
-					prompt: "¿Cada cuánto quieres saber de nosotros?",
-					questionType: "single_select",
-					required: true,
-					options: [
-						{ key: "weekly", label: "Semanal" },
-						{ key: "biweekly", label: "Cada 2 semanas" },
-						{ key: "monthly", label: "Mensual" },
-						{ key: "big_only", label: "Solo para cosas grandes" },
-						{ key: "least_possible", label: "Lo menos posible" },
-					],
-				}),
 				question("community.contact.name", {
 					key: "name",
 					prompt: "Nombre (opcional)",

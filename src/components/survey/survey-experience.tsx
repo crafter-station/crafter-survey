@@ -1100,22 +1100,6 @@ export function SurveyExperience({
     }
   }
 
-  const involvementQuestion = survey?.sections
-    .flatMap((section) => section.questions)
-    .find((question) => question.key === "involvement");
-
-  const involvementSelections = involvementQuestion
-    ? (() => {
-        const selectedKeys = readMultiSelectChoices(
-          answers[involvementQuestion.id],
-        );
-
-        return involvementQuestion.options
-          .filter((option) => selectedKeys.includes(option.key))
-          .map((option) => option.label);
-      })()
-    : [];
-
   if (mode === "unconfigured" || mode === "missing") {
     return (
       <SurveyShell
@@ -1408,8 +1392,7 @@ export function SurveyExperience({
                   />
                 ))}
 
-                {currentSection.key === "cierre" &&
-                involvementSelections.length > 0 ? (
+                {currentSection.key === "cierre" ? (
                   <div className="survey-muted rounded-[20px] border border-border/70 bg-background/70 px-4 py-4 text-sm leading-7 sm:px-5">
                     Tus respuestas son anonimas. Solo dejan de serlo si nos
                     compartes tu correo o tu numero para que podamos

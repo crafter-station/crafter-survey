@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import type { Ref } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import type {
@@ -73,7 +73,7 @@ export function QuestionRenderer({
   readOnly = false,
 }: {
   answer: SerializedAnswer | undefined;
-  inputRef?: RefObject<HTMLInputElement | HTMLTextAreaElement | null>;
+  inputRef?: Ref<HTMLInputElement | HTMLTextAreaElement>;
   onChange: (next: {
     valueText: string | null;
     valueJson: JsonValue | null;
@@ -82,6 +82,9 @@ export function QuestionRenderer({
   question: SurveyQuestion;
   readOnly?: boolean;
 }) {
+  const inputElementRef = inputRef as Ref<HTMLInputElement> | undefined;
+  const textareaElementRef = inputRef as Ref<HTMLTextAreaElement> | undefined;
+
   return (
     <Card
       className="space-y-3 bg-transparent px-0 py-0"
@@ -106,7 +109,7 @@ export function QuestionRenderer({
         {question.questionType === "long_text" ? (
           <TextareaQuestion
             disabled={readOnly}
-            inputRef={inputRef}
+            inputRef={textareaElementRef}
             onChange={(value) =>
               onChange({ valueText: value, valueJson: null })
             }
@@ -120,7 +123,7 @@ export function QuestionRenderer({
         question.questionType === "phone" ? (
           <TextQuestion
             disabled={readOnly}
-            inputRef={inputRef}
+            inputRef={inputElementRef}
             onChange={(value) =>
               onChange({ valueText: value, valueJson: null })
             }
