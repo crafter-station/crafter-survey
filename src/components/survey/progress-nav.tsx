@@ -3,7 +3,25 @@
 import { ListIcon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 
 interface ProgressNavProps {
   canGoBack: boolean;
@@ -42,6 +60,7 @@ export function ProgressNav({
 }: ProgressNavProps) {
   const [isSectionsOpen, setIsSectionsOpen] = useState(false);
   const [isSubmitConfirmOpen, setIsSubmitConfirmOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const progressPercentage = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0;
 
   useEffect(() => {
@@ -61,6 +80,22 @@ export function ProgressNav({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isSectionsOpen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(max-width: 640px)");
+    const updateIsMobile = () => setIsMobile(mediaQuery.matches);
+
+    updateIsMobile();
+    mediaQuery.addEventListener("change", updateIsMobile);
+
+    return () => {
+      mediaQuery.removeEventListener("change", updateIsMobile);
+    };
+  }, []);
 
   return (
     <>
@@ -195,48 +230,21 @@ export function ProgressNav({
         </div>
       ) : null}
 
-      {isSubmitConfirmOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
-          <button
-            aria-label="Cerrar confirmación"
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => {
-              if (!isSubmitting) {
-                setIsSubmitConfirmOpen(false);
-              }
-            }}
-            type="button"
-          />
-          <div
-            aria-label="Confirmar envío"
-            aria-modal="true"
-            className="relative w-full max-w-md rounded-[28px] border border-border/70 bg-background p-5 shadow-2xl"
-            onMouseDown={(event) => event.stopPropagation()}
-            role="dialog"
-          >
-            <div className="space-y-2">
+      {isMobile ? (
+        <Drawer open={isSubmitConfirmOpen} onOpenChange={setIsSubmitConfirmOpen}>
+          <DrawerContent>
+            <DrawerHeader>
               <p className="survey-kicker text-[0.64rem] uppercase tracking-[0.18em] text-muted-foreground">
                 Confirmar envío
               </p>
-              <h3 className="survey-heading text-xl leading-tight font-medium text-foreground">
+              <DrawerTitle className="survey-heading text-xl leading-tight font-medium text-foreground">
                 ¿Quieres enviar tus respuestas?
-              </h3>
-              <p className="survey-muted text-sm leading-6">
-                Como esta encuesta es anónima, no podrás editar tus respuestas
-                ni volver a enviarla después.
-              </p>
-            </div>
-
-            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-              <Button
-                className="rounded-full px-4 py-2.5"
-                disabled={isSubmitting}
-                onClick={() => setIsSubmitConfirmOpen(false)}
-                type="button"
-                variant="secondary"
-              >
-                Cancelar
-              </Button>
+              </DrawerTitle>
+              <DrawerDescription className="survey-muted text-sm leading-6">
+                Como esta encuesta es anónima, no podrás editar tus respuestas ni volver a enviarla después.
+              </DrawerDescription>
+            </DrawerHeader>
+            <DrawerFooter>
               <Button
                 className="rounded-full px-4 py-2.5 font-semibold"
                 disabled={isSubmitting}
@@ -247,10 +255,54 @@ export function ProgressNav({
               >
                 {isSubmitting ? "Enviando..." : "Sí, enviar"}
               </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+              <Button
+                className="rounded-full px-4 py-2.5"
+                disabled={isSubmitting}
+                onClick={() => setIsSubmitConfirmOpen(false)}
+                type="button"
+                variant="secondary"
+              >
+                Cancelar
+              </Button>
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
+      ) : (
+        <AlertDialog open={isSubmitConfirmOpen} onOpenChange={setIsSubmitConfirmOpen}>
+          <AlertDialogContent className="rounded-[28px] border border-border/70 bg-background p-5 shadow-2xl" size="default">
+            <AlertDialogHeader className="items-start text-left">
+              <p className="survey-kicker text-[0.64rem] uppercase tracking-[0.18em] text-muted-foreground">
+                Confirmar envío
+              </p>
+              <AlertDialogTitle className="survey-heading text-xl leading-tight font-medium text-foreground">
+                ¿Quieres enviar tus respuestas?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="survey-muted text-sm leading-6">
+                Como esta encuesta es anónima, no podrás editar tus respuestas ni volver a enviarla después.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel
+                className="rounded-full px-4 py-2.5"
+                disabled={isSubmitting}
+                size="default"
+                variant="secondary"
+              >
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                className="rounded-full px-4 py-2.5 font-semibold"
+                disabled={isSubmitting}
+                onClick={() => {
+                  onSubmit();
+                }}
+              >
+                {isSubmitting ? "Enviando..." : "Sí, enviar"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </>
   );
 }
