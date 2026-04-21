@@ -138,7 +138,7 @@ export function ProgressNav({
             Atrás
           </Button>
 
-          {currentSectionIndex === totalSections - 1 ? (
+          {currentSectionIndex === totalSections - 1 && !isReadOnly ? (
             <Button
               className="flex-1 rounded-full px-4 py-2.5 text-[0.72rem] tracking-[0.16em] font-semibold sm:flex-none"
               disabled={isSubmitting}
