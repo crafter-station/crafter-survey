@@ -28,6 +28,7 @@ export function MultiSelectQuestion({
   onChange: (value: MultiSelectAnswerValue) => void;
 }) {
   const maxSelections = getMaxSelections(question);
+  const useCompactLayout = question.ui?.variant === "chips";
 
   return (
     <div className="space-y-2.5">
@@ -37,7 +38,7 @@ export function MultiSelectQuestion({
         </p>
       ) : null}
 
-      <div className="grid gap-2.5 sm:grid-cols-2">
+      <div className={useCompactLayout ? "flex flex-wrap gap-2" : "grid gap-2.5 sm:grid-cols-2"}>
         {question.options.map((option) => {
           const selected = value.choices.includes(option.key);
 
@@ -72,46 +73,69 @@ export function MultiSelectQuestion({
           return (
             <div
               className={[
-                "survey-option",
+                useCompactLayout
+                  ? "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition-colors"
+                  : "survey-option",
                 disabled ? "cursor-default" : "cursor-pointer",
-                selected ? "survey-option-selected" : "",
+                selected
+                  ? useCompactLayout
+                    ? "border-foreground bg-foreground text-background"
+                    : "survey-option-selected"
+                  : useCompactLayout
+                    ? "border-border hover:border-foreground/50"
+                    : "",
               ].join(" ")}
               onClick={toggleOption}
               key={option.id}
+              role="button"
+              tabIndex={disabled ? -1 : 0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  toggleOption();
+                }
+              }}
             >
-              <label
-                className={[
-                  "flex w-full items-start justify-between gap-2.5",
-                  disabled ? "cursor-default" : "cursor-pointer",
-                ].join(" ")}
-                htmlFor={`${question.id}-${option.key}`}
-              >
-                <div className="space-y-1">
-                  <p className="text-base leading-6 text-foreground">
-                    {option.label}
-                  </p>
-                  {option.helpText ? (
-                    <p className="survey-muted text-sm">{option.helpText}</p>
-                  ) : null}
-                </div>
-                <Checkbox
-                  checked={selected}
-                  className="mt-1 rounded-none border-border bg-background text-primary"
-                  disabled={disabled}
-                  id={`${question.id}-${option.key}`}
-                  onCheckedChange={() => toggleOption()}
-                  onClick={(event) => event.stopPropagation()}
-                />
-              </label>
+              <div className={[
+                "pointer-events-none",
+                useCompactLayout
+                  ? "flex items-center gap-2"
+                  : "flex w-full items-start justify-between gap-2.5"
+              ].join(" ")}>
+                {useCompactLayout ? (
+                  <>
+                    {selected && <span className="text-xs">✓</span>}
+                    <span>{option.label}</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-1">
+                      <p className="text-base leading-6 text-foreground">
+                        {option.label}
+                      </p>
+                      {option.helpText ? (
+                        <p className="survey-muted text-sm">{option.helpText}</p>
+                      ) : null}
+                    </div>
+                    <Checkbox
+                      checked={selected}
+                      className="mt-1 rounded-none border-border bg-background text-primary pointer-events-none"
+                      disabled={disabled}
+                      id={`${question.id}-${option.key}`}
+                    />
+                  </>
+                )}
+              </div>
             </div>
           );
         })}
       </div>
 
-      {question.options.some(
-        (option) =>
-          value.choices.includes(option.key) && option.meta?.allowsText,
-      ) ? (
+      {(question.ui?.showAdditionalTextInput ||
+        question.options.some(
+          (option) =>
+            value.choices.includes(option.key) && option.meta?.allowsText,
+        )) ? (
         <input
           className="survey-input"
           disabled={disabled}
@@ -122,7 +146,9 @@ export function MultiSelectQuestion({
             })
           }
           placeholder={
-            readUiString(question, "otherInputPlaceholder") ?? "Cuéntanos más"
+            readUiString(question, "additionalTextPlaceholder") ??
+            readUiString(question, "otherInputPlaceholder") ??
+            "Cuéntanos más"
           }
           type="text"
           value={value.otherText ?? ""}

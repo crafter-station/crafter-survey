@@ -19,6 +19,8 @@ interface ProgressNavProps {
   saveLabel: string | null;
   sections: Array<{ id: string; title: string }>;
   totalSections: number;
+  answeredQuestions: number;
+  totalQuestions: number;
 }
 
 export function ProgressNav({
@@ -35,8 +37,11 @@ export function ProgressNav({
   saveLabel,
   sections,
   totalSections,
+  answeredQuestions,
+  totalQuestions,
 }: ProgressNavProps) {
   const [isSectionsOpen, setIsSectionsOpen] = useState(false);
+  const progressPercentage = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0;
 
   useEffect(() => {
     if (!isSectionsOpen) {
@@ -58,25 +63,37 @@ export function ProgressNav({
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-2">
-          <p className="survey-kicker text-[0.69rem] uppercase tracking-[0.26em] text-muted-foreground">
-            Sección {currentSectionIndex + 1} de {totalSections}
-          </p>
-          {saveLabel ? (
-            <p className="survey-muted text-sm">{saveLabel}</p>
-          ) : null}
-          <Button
-            className="rounded-full px-3 py-2 text-[0.68rem] tracking-[0.16em]"
-            disabled={isSubmitting}
-            onClick={() => setIsSectionsOpen(true)}
-            type="button"
-            variant="outline"
-          >
-            <ListIcon className="size-3.5" />
-            Secciones
-          </Button>
+      <div className="mx-auto w-full max-w-5xl space-y-3">
+        <div className="h-0.5 w-full overflow-hidden bg-muted/30">
+          <div
+            className="h-full bg-yellow-400 transition-all duration-500 ease-out"
+            style={{ width: `${progressPercentage}%` }}
+          />
         </div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-2 flex-1">
+            <div className="flex items-center gap-4">
+              <p className="survey-kicker text-[0.69rem] uppercase tracking-[0.26em] text-muted-foreground">
+                Sección {currentSectionIndex + 1} de {totalSections}
+              </p>
+              <p className="survey-kicker ml-auto text-[0.69rem] uppercase tracking-[0.26em] text-muted-foreground">
+                {answeredQuestions} de {totalQuestions}
+              </p>
+            </div>
+            {saveLabel ? (
+              <p className="survey-muted text-sm">{saveLabel}</p>
+            ) : null}
+            <Button
+              className="rounded-full px-3 py-2 text-[0.68rem] tracking-[0.16em]"
+              disabled={isSubmitting}
+              onClick={() => setIsSectionsOpen(true)}
+              type="button"
+              variant="outline"
+            >
+              <ListIcon className="size-3.5" />
+              Secciones
+            </Button>
+          </div>
 
         <div className="flex items-center gap-2 self-stretch sm:self-auto">
           <Button
@@ -88,23 +105,24 @@ export function ProgressNav({
             Atrás
           </Button>
 
-          <Button
-            className="flex-1 rounded-full px-3 py-2 text-[0.68rem] tracking-[0.16em] sm:flex-none"
-            disabled={!canGoNext || isSubmitting}
-            onClick={onNext}
-          >
-            Siguiente
-          </Button>
-
-          {isReadOnly ? null : (
+          {currentSectionIndex === totalSections - 1 ? (
             <Button
-              className="flex-1 rounded-full px-3 py-2 text-[0.68rem] tracking-[0.16em] sm:flex-none"
+              className="flex-1 rounded-full px-4 py-2.5 text-[0.72rem] tracking-[0.16em] font-semibold sm:flex-none"
               disabled={isSubmitting}
               onClick={onSubmit}
             >
-              {isSubmitting ? "Enviando..." : "Enviar ahora"}
+              {isSubmitting ? "Enviando..." : "Enviar"}
+            </Button>
+          ) : (
+            <Button
+              className="flex-1 rounded-full px-3 py-2 text-[0.68rem] tracking-[0.16em] sm:flex-none"
+              disabled={!canGoNext || isSubmitting}
+              onClick={onNext}
+            >
+              Siguiente
             </Button>
           )}
+        </div>
         </div>
       </div>
 

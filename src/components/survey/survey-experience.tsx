@@ -23,11 +23,14 @@ import type {
   UnlockResponseBody,
 } from "@/types/survey";
 
+import { Button } from "@/components/ui/button";
+
 import { AccessGate } from "./access-gate";
 import { CompletionScreen } from "./completion-screen";
 import { type SurveyMode, SurveyModeToggle } from "./mode-toggle";
 import { ProgressNav } from "./progress-nav";
 import { QuestionRenderer } from "./question-renderer";
+import { RaffleTransition } from "./raffle-transition";
 import { SectionPanel } from "./section-panel";
 import { SurveyChatPane } from "./survey-chat";
 import { SurveyCompactChrome } from "./survey-compact-chrome";
@@ -292,14 +295,17 @@ export function SurveyExperience({
   const [unlockCode, setUnlockCode] = useState("");
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const [direction, setDirection] = useState(1);
-  const [surveyMode, setSurveyMode] = useState<SurveyMode>(() => {
-    if (typeof window === "undefined") {
-      return "chat";
-    }
+  const [showRaffleTransition, setShowRaffleTransition] = useState(false);
+  const [surveyMode, setSurveyMode] = useState<SurveyMode>("chat");
 
-    const stored = window.localStorage.getItem(MODE_STORAGE_KEY);
-    return stored === "chat" || stored === "form" ? stored : "chat";
-  });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = window.localStorage.getItem(MODE_STORAGE_KEY);
+      if (stored === "chat" || stored === "form") {
+        setSurveyMode(stored);
+      }
+    }
+  }, []);
 
   function updateSurveyMode(nextMode: SurveyMode) {
     setSurveyMode(nextMode);
@@ -994,6 +1000,13 @@ export function SurveyExperience({
       return;
     }
 
+    // Check if we're entering the raffle section - show transition instead
+    if (targetSection.key === "raffle" && !showRaffleTransition) {
+      setShowRaffleTransition(true);
+      scrollToSectionTop();
+      return;
+    }
+
     if (mode === "survey") {
       persistOutbox({
         ...(outboxRef.current?.responseId === response.id
@@ -1069,6 +1082,57 @@ export function SurveyExperience({
     scrollToSectionTop();
   }
 
+  async function handleContinueToRaffle() {
+    if (!survey || !response) {
+      return;
+    }
+
+    const raffleIndex = survey.sections.findIndex(
+      (section) => section.key === "raffle",
+    );
+
+    if (raffleIndex < 0) {
+      return;
+    }
+
+    const targetSection = survey.sections[raffleIndex];
+
+    if (mode === "survey") {
+      persistOutbox({
+        ...(outboxRef.current?.responseId === response.id
+          ? outboxRef.current
+          : createOutbox(response.id, targetSection.id)),
+        currentSectionId: targetSection.id,
+        touchSection: true,
+        retryCount: 0,
+      });
+      setSurveyPageData((current) =>
+        current.response
+          ? {
+              ...current,
+              response: {
+                ...current.response,
+                currentSectionId: targetSection.id,
+              },
+            }
+          : current,
+      );
+      void flushDirty({ forceTouch: true, nextSectionId: targetSection.id });
+    }
+
+    setShowRaffleTransition(false);
+    setDirection(1);
+    startTransition(() => {
+      setCurrentSectionIndex(raffleIndex);
+    });
+    scrollToSectionTop();
+  }
+
+  async function handleSubmitFromTransition() {
+    setShowRaffleTransition(false);
+    await handleSubmit();
+  }
+
   async function handleSubmit() {
     if (!survey || !response || !currentSection) {
       return;
@@ -1099,6 +1163,22 @@ export function SurveyExperience({
       scheduleRetry(0);
     }
   }
+
+  const involvementQuestion = survey?.sections
+    .flatMap((section) => section.questions)
+    .find((question) => question.key === "involvement");
+
+  const involvementSelections = involvementQuestion
+    ? (() => {
+        const selectedKeys = readMultiSelectChoices(
+          answers[involvementQuestion.id],
+        );
+
+        return involvementQuestion.options
+          .filter((option) => selectedKeys.includes(option.key))
+          .map((option) => option.label);
+      })()
+    : [];
 
   if (mode === "unconfigured" || mode === "missing") {
     return (
@@ -1208,6 +1288,13 @@ export function SurveyExperience({
           title: section.title,
         }))}
         totalSections={survey.sections.length}
+        answeredQuestions={currentSection.questions.filter(
+          (q) => {
+            const answer = answers[q.id];
+            return answer && (answer.valueText || answer.valueJson);
+          }
+        ).length}
+        totalQuestions={currentSection.questions.length}
       />
     ) : null;
 
@@ -1230,6 +1317,13 @@ export function SurveyExperience({
           title: section.title,
         }))}
         totalSections={survey.sections.length}
+        answeredQuestions={currentSection.questions.filter(
+          (q) => {
+            const answer = answers[q.id];
+            return answer && (answer.valueText || answer.valueJson);
+          }
+        ).length}
+        totalQuestions={currentSection.questions.length}
       />
     ) : null;
 
@@ -1351,21 +1445,29 @@ export function SurveyExperience({
         chrome={compactChrome}
         compact
         contentRef={contentScrollRef}
-        footer={formFooter ?? undefined}
+        footer={showRaffleTransition ? undefined : formFooter ?? undefined}
       >
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-5 sm:px-6 sm:py-7">
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <h2 className="survey-heading max-w-3xl text-2xl leading-tight font-medium tracking-[-0.03em] text-foreground sm:text-3xl">
-                {currentSection.title}
-              </h2>
-              {currentSection.description ? (
-                <p className="survey-body survey-muted max-w-2xl text-sm leading-6 sm:text-base sm:leading-7">
-                  {currentSection.description}
-                </p>
-              ) : null}
-            </div>
-          </div>
+          {showRaffleTransition ? (
+            <RaffleTransition
+              isSubmitting={submitPending}
+              onContinue={handleContinueToRaffle}
+              onSubmit={handleSubmitFromTransition}
+            />
+          ) : (
+            <>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <h2 className="survey-heading max-w-3xl text-2xl leading-tight font-medium tracking-[-0.03em] text-foreground sm:text-3xl">
+                    {currentSection.title}
+                  </h2>
+                  {currentSection.description ? (
+                    <p className="survey-body survey-muted max-w-2xl text-sm leading-6 sm:text-base sm:leading-7">
+                      {currentSection.description}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
 
           <div className="space-y-4 pb-4">
             <AnimatePresence initial={false} mode="wait">
@@ -1392,16 +1494,18 @@ export function SurveyExperience({
                   />
                 ))}
 
-                {currentSection.key === "cierre" ? (
+                {currentSection.key === "raffle" ? (
                   <div className="survey-muted rounded-[20px] border border-border/70 bg-background/70 px-4 py-4 text-sm leading-7 sm:px-5">
-                    Tus respuestas son anonimas. Solo dejan de serlo si nos
-                    compartes tu correo o tu numero para que podamos
+                    Tus respuestas son anónimas. Solo dejan de serlo si nos
+                    compartes tu correo o tu número para que podamos
                     contactarte.
                   </div>
                 ) : null}
               </SectionPanel>
             </AnimatePresence>
           </div>
+            </>
+          )}
         </div>
       </SurveyShell>
     );
