@@ -41,6 +41,7 @@ export function ProgressNav({
   totalQuestions,
 }: ProgressNavProps) {
   const [isSectionsOpen, setIsSectionsOpen] = useState(false);
+  const [isSubmitConfirmOpen, setIsSubmitConfirmOpen] = useState(false);
   const progressPercentage = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0;
 
   useEffect(() => {
@@ -106,7 +107,7 @@ export function ProgressNav({
             <Button
               className="flex-1 rounded-full px-4 py-2.5 text-[0.72rem] tracking-[0.16em] font-semibold sm:flex-none"
               disabled={isSubmitting}
-              onClick={onSubmit}
+              onClick={() => setIsSubmitConfirmOpen(true)}
             >
               {isSubmitting ? "Enviando..." : "Enviar"}
             </Button>
@@ -189,6 +190,63 @@ export function ProgressNav({
                   </button>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isSubmitConfirmOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
+          <button
+            aria-label="Cerrar confirmación"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => {
+              if (!isSubmitting) {
+                setIsSubmitConfirmOpen(false);
+              }
+            }}
+            type="button"
+          />
+          <div
+            aria-label="Confirmar envío"
+            aria-modal="true"
+            className="relative w-full max-w-md rounded-[28px] border border-border/70 bg-background p-5 shadow-2xl"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="space-y-2">
+              <p className="survey-kicker text-[0.64rem] uppercase tracking-[0.18em] text-muted-foreground">
+                Confirmar envío
+              </p>
+              <h3 className="survey-heading text-xl leading-tight font-medium text-foreground">
+                ¿Quieres enviar tus respuestas?
+              </h3>
+              <p className="survey-muted text-sm leading-6">
+                Como esta encuesta es anónima, no podrás editar tus respuestas
+                ni volver a enviarla después.
+              </p>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button
+                className="rounded-full px-4 py-2.5"
+                disabled={isSubmitting}
+                onClick={() => setIsSubmitConfirmOpen(false)}
+                type="button"
+                variant="secondary"
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="rounded-full px-4 py-2.5 font-semibold"
+                disabled={isSubmitting}
+                onClick={() => {
+                  onSubmit();
+                }}
+                type="button"
+              >
+                {isSubmitting ? "Enviando..." : "Sí, enviar"}
+              </Button>
             </div>
           </div>
         </div>
