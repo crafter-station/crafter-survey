@@ -295,6 +295,7 @@ export function SurveyExperience({
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const [direction, setDirection] = useState(1);
   const [surveyMode, setSurveyMode] = useState<SurveyMode>("chat");
+  const [showCompletionConfetti, setShowCompletionConfetti] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -1099,6 +1100,7 @@ export function SurveyExperience({
         mode: "submitted",
         response: submittedResponse,
       });
+      setShowCompletionConfetti(true);
     } catch {
       scheduleRetry(0);
     }
@@ -1228,12 +1230,12 @@ export function SurveyExperience({
           title: section.title,
         }))}
         totalSections={survey.sections.length}
-        answeredQuestions={currentSection.questions.filter(
-          (q) => {
+        answeredQuestions={
+          currentSection.questions.filter((q) => {
             const answer = answers[q.id];
             return answer && (answer.valueText || answer.valueJson);
-          }
-        ).length}
+          }).length
+        }
         totalQuestions={currentSection.questions.length}
       />
     ) : null;
@@ -1257,12 +1259,12 @@ export function SurveyExperience({
           title: section.title,
         }))}
         totalSections={survey.sections.length}
-        answeredQuestions={currentSection.questions.filter(
-          (q) => {
+        answeredQuestions={
+          currentSection.questions.filter((q) => {
             const answer = answers[q.id];
             return answer && (answer.valueText || answer.valueJson);
-          }
-        ).length}
+          }).length
+        }
         totalQuestions={currentSection.questions.length}
       />
     ) : null;
@@ -1328,6 +1330,7 @@ export function SurveyExperience({
           <div className="space-y-4">
             <CompletionScreen
               description={survey.completionDescription ?? null}
+              showConfetti={showCompletionConfetti}
             />
 
             <div className="space-y-3">
@@ -1388,56 +1391,56 @@ export function SurveyExperience({
         footer={formFooter ?? undefined}
       >
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-5 sm:px-6 sm:py-7">
-            <>
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <h2 className="survey-heading max-w-3xl text-2xl leading-tight font-medium tracking-[-0.03em] text-foreground sm:text-3xl">
-                    {currentSection.title}
-                  </h2>
-                  {currentSection.description ? (
-                    <p className="survey-body survey-muted max-w-2xl text-sm leading-6 sm:text-base sm:leading-7">
-                      {currentSection.description}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-
-          <div className="space-y-4 pb-4">
-            <AnimatePresence initial={false} mode="wait">
-              <SectionPanel
-                direction={reducedMotion ? 0 : direction}
-                panelKey={currentSection.id}
-              >
-                {currentSection.questions.map((question) => (
-                  <QuestionRenderer
-                    answer={answers[question.id]}
-                    inputRef={
-                      isTextEntryQuestion(question.questionType)
-                        ? (node) => {
-                            questionInputRefs.current.set(question.id, node);
-                          }
-                        : undefined
-                    }
-                    key={question.id}
-                    onChange={(next) => updateAnswer(question.id, next)}
-                    onSingleSelectCommit={() =>
-                      handleSingleSelectCommit(question.id)
-                    }
-                    question={question}
-                  />
-                ))}
-
-                {currentSection.key === "cierre" ? (
-                  <div className="survey-muted rounded-[20px] border border-border/70 bg-background/70 px-4 py-4 text-sm leading-7 sm:px-5">
-                    Tus respuestas son anónimas. Solo dejan de serlo si nos
-                    compartes tu correo o tu número para que podamos
-                    contactarte.
-                  </div>
+          <>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <h2 className="survey-heading max-w-3xl text-2xl leading-tight font-medium tracking-[-0.03em] text-foreground sm:text-3xl">
+                  {currentSection.title}
+                </h2>
+                {currentSection.description ? (
+                  <p className="survey-body survey-muted max-w-2xl text-sm leading-6 sm:text-base sm:leading-7">
+                    {currentSection.description}
+                  </p>
                 ) : null}
-              </SectionPanel>
-            </AnimatePresence>
-          </div>
-            </>
+              </div>
+            </div>
+
+            <div className="space-y-4 pb-4">
+              <AnimatePresence initial={false} mode="wait">
+                <SectionPanel
+                  direction={reducedMotion ? 0 : direction}
+                  panelKey={currentSection.id}
+                >
+                  {currentSection.questions.map((question) => (
+                    <QuestionRenderer
+                      answer={answers[question.id]}
+                      inputRef={
+                        isTextEntryQuestion(question.questionType)
+                          ? (node) => {
+                              questionInputRefs.current.set(question.id, node);
+                            }
+                          : undefined
+                      }
+                      key={question.id}
+                      onChange={(next) => updateAnswer(question.id, next)}
+                      onSingleSelectCommit={() =>
+                        handleSingleSelectCommit(question.id)
+                      }
+                      question={question}
+                    />
+                  ))}
+
+                  {currentSection.key === "cierre" ? (
+                    <div className="survey-muted rounded-[20px] border border-border/70 bg-background/70 px-4 py-4 text-sm leading-7 sm:px-5">
+                      Tus respuestas son anónimas. Solo dejan de serlo si nos
+                      compartes tu correo o tu número para que podamos
+                      contactarte.
+                    </div>
+                  ) : null}
+                </SectionPanel>
+              </AnimatePresence>
+            </div>
+          </>
         </div>
       </SurveyShell>
     );
