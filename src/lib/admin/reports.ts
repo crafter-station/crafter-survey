@@ -11,8 +11,6 @@ import {
   surveyVersions,
 } from "@/db/schema";
 import type { AdminFilters } from "@/lib/admin/filters";
-import type { JsonValue } from "@/types/survey";
-
 const RESPONSE_PAGE_SIZE = 25;
 
 type GroupedAnswer = {
@@ -66,7 +64,7 @@ function groupAnswerValues(values: Array<string | null | undefined>) {
   return sortGroupedAnswers(Array.from(groupedAnswers.values()));
 }
 
-function readOtherText(valueJson: JsonValue | null) {
+function readOtherText(valueJson: unknown) {
   if (!valueJson || typeof valueJson !== "object" || Array.isArray(valueJson)) {
     return null;
   }
