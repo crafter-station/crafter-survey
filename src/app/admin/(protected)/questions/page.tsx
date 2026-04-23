@@ -4,6 +4,30 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { parseAdminFilters } from "@/lib/admin/filters";
 import { getQuestionBreakdown } from "@/lib/admin/reports";
 
+function buildQuestionHref({
+  surveySlug,
+  versionId,
+  questionKey,
+  includeDrafts,
+}: {
+  surveySlug: string;
+  versionId: string;
+  questionKey: string;
+  includeDrafts: boolean;
+}) {
+  const params = new URLSearchParams({
+    survey: surveySlug,
+    version: versionId,
+    question: questionKey,
+  });
+
+  if (includeDrafts) {
+    params.set("includeDrafts", "1");
+  }
+
+  return `/admin/questions?${params.toString()}`;
+}
+
 function GroupedAnswersList({
   answers,
 }: {
@@ -40,8 +64,10 @@ export default async function AdminQuestionsPage({
         <div className="space-y-6">
           <AdminFilterBar
             basePath="/admin/questions"
+            includeDrafts={filters.includeDrafts}
             selectedSurvey={report.scope.survey.slug}
             selectedVersion={report.scope.version.id}
+            showIncludeDraftsToggle
             surveyOptions={report.scope.surveys.map((survey) => ({
               value: survey.slug,
               label: survey.title,
@@ -67,7 +93,12 @@ export default async function AdminQuestionsPage({
                           ? "border-foreground bg-foreground text-background"
                           : "border-border/70 bg-card/70 hover:bg-accent/60",
                       ].join(" ")}
-                      href={`/admin/questions?survey=${encodeURIComponent(report.scope.survey.slug)}&version=${encodeURIComponent(report.scope.version.id)}&question=${encodeURIComponent(question.questionKey)}`}
+                      href={buildQuestionHref({
+                        surveySlug: report.scope.survey.slug,
+                        versionId: report.scope.version.id,
+                        questionKey: question.questionKey,
+                        includeDrafts: filters.includeDrafts,
+                      })}
                       key={question.questionId}
                     >
                       <div className="font-medium">{question.prompt}</div>
@@ -88,7 +119,10 @@ export default async function AdminQuestionsPage({
                 <CardContent className="space-y-2">
                   <p className="survey-muted text-sm">
                     Answered by {report.answeredCount} of{" "}
-                    {report.totalSubmittedResponses} submitted responses.
+                    {report.totalResponses}{" "}
+                    {report.includesDrafts
+                      ? "responses."
+                      : "submitted responses."}
                   </p>
                 </CardContent>
               </Card>

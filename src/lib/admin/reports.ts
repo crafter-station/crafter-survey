@@ -11,6 +11,7 @@ import {
   surveyVersions,
 } from "@/db/schema";
 import type { AdminFilters } from "@/lib/admin/filters";
+
 const RESPONSE_PAGE_SIZE = 25;
 
 type GroupedAnswer = {
@@ -236,17 +237,20 @@ export async function getQuestionBreakdown(filters: AdminFilters) {
     };
   }
 
-  const submittedResponseIds = await db
+  const responseConditions = [
+    eq(surveyResponses.surveyVersionId, scope.version.id),
+  ];
+
+  if (!filters.includeDrafts) {
+    responseConditions.push(eq(surveyResponses.status, "submitted"));
+  }
+
+  const matchingResponseIds = await db
     .select({ id: surveyResponses.id })
     .from(surveyResponses)
-    .where(
-      and(
-        eq(surveyResponses.surveyVersionId, scope.version.id),
-        eq(surveyResponses.status, "submitted"),
-      ),
-    );
+    .where(and(...responseConditions));
 
-  const responseIds = submittedResponseIds.map((row) => row.id);
+  const responseIds = matchingResponseIds.map((row) => row.id);
 
   const answers = responseIds.length
     ? await db
@@ -301,7 +305,8 @@ export async function getQuestionBreakdown(filters: AdminFilters) {
     questions: questions?.questions ?? [],
     selectedQuestion,
     answeredCount: answers.length,
-    totalSubmittedResponses: responseIds.length,
+    includesDrafts: filters.includeDrafts,
+    totalResponses: responseIds.length,
     optionBreakdown: options.map((option) => ({
       ...option,
       count: option.analyticsKey
