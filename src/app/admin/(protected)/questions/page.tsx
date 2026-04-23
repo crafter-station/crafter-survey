@@ -4,6 +4,28 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { parseAdminFilters } from "@/lib/admin/filters";
 import { getQuestionBreakdown } from "@/lib/admin/reports";
 
+function GroupedAnswersList({
+  answers,
+}: {
+  answers: Array<{ count: number; value: string }>;
+}) {
+  return (
+    <div className="space-y-3">
+      {answers.map((answer) => (
+        <div
+          className="flex items-start justify-between gap-4 rounded-[18px] border border-border/70 p-4 text-sm"
+          key={answer.value}
+        >
+          <div className="min-w-0 flex-1 break-words">{answer.value}</div>
+          <div className="survey-muted shrink-0 rounded-full border border-border/70 px-2.5 py-1 text-xs">
+            {answer.count}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default async function AdminQuestionsPage({
   searchParams,
 }: {
@@ -99,22 +121,24 @@ export default async function AdminQuestionsPage({
                 </Card>
               ) : null}
 
-              {report.textAnswers.length > 0 ? (
+              {report.groupedTextAnswers.length > 0 ? (
                 <Card>
                   <CardHeader>
                     <CardTitle>Text answers</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
-                      {report.textAnswers.map((answer, index) => (
-                        <div
-                          className="rounded-[18px] border border-border/70 p-4 text-sm"
-                          key={`${index}:${answer}`}
-                        >
-                          {answer}
-                        </div>
-                      ))}
-                    </div>
+                    <GroupedAnswersList answers={report.groupedTextAnswers} />
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {report.groupedOtherAnswers.length > 0 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Other text answers</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <GroupedAnswersList answers={report.groupedOtherAnswers} />
                   </CardContent>
                 </Card>
               ) : null}
@@ -124,7 +148,9 @@ export default async function AdminQuestionsPage({
       ) : (
         <Card>
           <CardContent className="p-6">
-            <p className="survey-muted text-sm">No question analytics available.</p>
+            <p className="survey-muted text-sm">
+              No question analytics available.
+            </p>
           </CardContent>
         </Card>
       )}

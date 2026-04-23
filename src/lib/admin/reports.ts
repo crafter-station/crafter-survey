@@ -1,28 +1,96 @@
-import { and, asc, count, desc, eq, ilike, inArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { getDb } from "@/db/client";
 import {
   surveyAnswers,
   surveyQuestionOptions,
   surveyQuestions,
-  surveyResponseChats,
   surveyResponses,
   surveySections,
   surveys,
   surveyVersions,
 } from "@/db/schema";
 import type { AdminFilters } from "@/lib/admin/filters";
+import type { JsonValue } from "@/types/survey";
 
 const RESPONSE_PAGE_SIZE = 25;
+
+type GroupedAnswer = {
+  count: number;
+  value: string;
+};
+
+function normalizeAnswerForGrouping(value: string | null | undefined) {
+  const trimmed = value?.trim() ?? "";
+
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.normalize("NFKC").replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
+function sortGroupedAnswers(groupedAnswers: GroupedAnswer[]) {
+  return groupedAnswers.sort(
+    (left, right) =>
+      right.count - left.count || left.value.localeCompare(right.value),
+  );
+}
+
+function groupAnswerValues(values: Array<string | null | undefined>) {
+  const groupedAnswers = new Map<string, GroupedAnswer>();
+
+  for (const value of values) {
+    const key = normalizeAnswerForGrouping(value);
+    const trimmedValue = value?.trim() ?? "";
+
+    if (!key || !trimmedValue) {
+      continue;
+    }
+
+    const existing = groupedAnswers.get(key);
+
+    if (existing) {
+      existing.count += 1;
+
+      if (trimmedValue.length < existing.value.length) {
+        existing.value = trimmedValue;
+      }
+
+      continue;
+    }
+
+    groupedAnswers.set(key, { count: 1, value: trimmedValue });
+  }
+
+  return sortGroupedAnswers(Array.from(groupedAnswers.values()));
+}
+
+function readOtherText(valueJson: JsonValue | null) {
+  if (!valueJson || typeof valueJson !== "object" || Array.isArray(valueJson)) {
+    return null;
+  }
+
+  const otherText = "otherText" in valueJson ? valueJson.otherText : null;
+
+  return typeof otherText === "string" ? otherText : null;
+}
 
 type Scope = {
   survey: { id: string; slug: string; title: string };
   version: { id: string; versionNumber: number; title: string; status: string };
   surveys: Array<{ slug: string; title: string }>;
-  versions: Array<{ id: string; versionNumber: number; title: string; status: string }>;
+  versions: Array<{
+    id: string;
+    versionNumber: number;
+    title: string;
+    status: string;
+  }>;
 };
 
-export async function getAdminScopeOptions(filters: AdminFilters): Promise<Scope | null> {
+export async function getAdminScopeOptions(
+  filters: AdminFilters,
+): Promise<Scope | null> {
   const db = getDb();
 
   const surveyRows = await db
@@ -31,7 +99,9 @@ export async function getAdminScopeOptions(filters: AdminFilters): Promise<Scope
     .orderBy(asc(surveys.title));
 
   const selectedSurvey =
-    surveyRows.find((survey) => survey.slug === filters.surveySlug) ?? surveyRows[0] ?? null;
+    surveyRows.find((survey) => survey.slug === filters.surveySlug) ??
+    surveyRows[0] ??
+    null;
 
   if (!selectedSurvey) {
     return null;
@@ -61,7 +131,10 @@ export async function getAdminScopeOptions(filters: AdminFilters): Promise<Scope
   return {
     survey: selectedSurvey,
     version: selectedVersion,
-    surveys: surveyRows.map((survey) => ({ slug: survey.slug, title: survey.title })),
+    surveys: surveyRows.map((survey) => ({
+      slug: survey.slug,
+      title: survey.title,
+    })),
     versions: versionRows,
   };
 }
@@ -131,7 +204,10 @@ export async function getQuestionList(filters: AdminFilters) {
       questionType: surveyQuestions.questionType,
     })
     .from(surveyQuestions)
-    .innerJoin(surveySections, eq(surveyQuestions.surveySectionId, surveySections.id))
+    .innerJoin(
+      surveySections,
+      eq(surveyQuestions.surveySectionId, surveySections.id),
+    )
     .where(eq(surveySections.surveyVersionId, scope.version.id))
     .orderBy(asc(surveySections.sortOrder), asc(surveyQuestions.sortOrder));
 
@@ -148,12 +224,18 @@ export async function getQuestionBreakdown(filters: AdminFilters) {
 
   const questions = await getQuestionList(filters);
   const selectedQuestion =
-    questions?.questions.find((question) => question.questionKey === filters.questionKey) ??
+    questions?.questions.find(
+      (question) => question.questionKey === filters.questionKey,
+    ) ??
     questions?.questions[0] ??
     null;
 
   if (!selectedQuestion) {
-    return { scope, questions: questions?.questions ?? [], selectedQuestion: null };
+    return {
+      scope,
+      questions: questions?.questions ?? [],
+      selectedQuestion: null,
+    };
   }
 
   const submittedResponseIds = await db
@@ -198,6 +280,7 @@ export async function getQuestionBreakdown(filters: AdminFilters) {
 
   const optionCounts = new Map<string, number>();
   const textAnswers: string[] = [];
+  const otherAnswers: string[] = [];
 
   for (const answer of answers) {
     for (const key of answer.selectedOptionAnalyticsKeysSnapshot ?? []) {
@@ -206,6 +289,12 @@ export async function getQuestionBreakdown(filters: AdminFilters) {
 
     if (answer.valueText?.trim()) {
       textAnswers.push(answer.valueText.trim());
+    }
+
+    const otherText = readOtherText(answer.valueJson);
+
+    if (otherText?.trim()) {
+      otherAnswers.push(otherText.trim());
     }
   }
 
@@ -217,9 +306,12 @@ export async function getQuestionBreakdown(filters: AdminFilters) {
     totalSubmittedResponses: responseIds.length,
     optionBreakdown: options.map((option) => ({
       ...option,
-      count: option.analyticsKey ? optionCounts.get(option.analyticsKey) ?? 0 : 0,
+      count: option.analyticsKey
+        ? (optionCounts.get(option.analyticsKey) ?? 0)
+        : 0,
     })),
-    textAnswers,
+    groupedOtherAnswers: groupAnswerValues(otherAnswers),
+    groupedTextAnswers: groupAnswerValues(textAnswers),
   };
 }
 
@@ -231,7 +323,9 @@ export async function listResponses(filters: AdminFilters) {
     return null;
   }
 
-  const whereConditions = [eq(surveyResponses.surveyVersionId, scope.version.id)];
+  const whereConditions = [
+    eq(surveyResponses.surveyVersionId, scope.version.id),
+  ];
 
   if (filters.status !== "all") {
     whereConditions.push(eq(surveyResponses.status, filters.status));
@@ -296,7 +390,9 @@ export async function getResponseDetail(responseId: string) {
     return null;
   }
 
-  const answerMap = new Map(response.answers.map((answer) => [answer.questionId, answer]));
+  const answerMap = new Map(
+    response.answers.map((answer) => [answer.questionId, answer]),
+  );
 
   return {
     id: response.id,
